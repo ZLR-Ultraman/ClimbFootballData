@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Football Data Hub</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    :root {
+      --bg-dark: #0a1628;
+      --bg-card: #111d35;
+      --bg-card-hover: #162545;
+      --accent: #00e676;
+      --accent2: #76ff03;
+      --gold: #ffd600;
+      --text: #e0e6f0;
+      --text-dim: #7a8ba8;
+      --border: #1e3050;
+      --win: #00e676;
+      --draw: #ffd600;
+      --loss: #ff5252;
+      --danger: #ff5252
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+      min-height: 100vh
+    }
+
+    .app-container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 20px
+    }
+
+    .header {
+      text-align: center;
+      padding: 24px 0 16px;
+      position: relative
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent)
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--gold));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 2px
+    }
+
+    .header p {
+      color: var(--text-dim);
+      margin-top: 4px;
+      font-size: .85rem
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin: 20px 0;
+      flex-wrap: wrap
+    }
+
+    .toolbar input[type=text] {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: .9rem;
+      width: 260px;
+      outline: none;
+      transition: border-color .3s
+    }
+
+    .toolbar input[type=text]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 12px rgba(0, 230, 118, .15)
+    }
+
+    .toolbar input::placeholder {
+      color: var(--text-dim)
+    }
+
+    .toolbar input[type=date] {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: .85rem;
+      outline: none
+    }
+
+    .toolbar input[type=date]::-webkit-calendar-picker-indicator {
+      filter: invert(.7)
+    }
+
+    .btn {
+      padding: 10px 22px;
+      border: none;
+      border-radius: 8px;
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .25s;
+      letter-spacing: .5px
+    }
+
+    .btn:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00c853, #00e676);
+      color: #0a1628
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(0, 230, 118, .3)
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--accent);
+      border: 1px solid var(--accent)
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(0, 230, 118, .08)
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: #fff
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      opacity: .85
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, #ff9100, #ffab00);
+      color: #fff
+    }
+
+    .btn-warning:hover:not(:disabled) {
+      opacity: .9
+    }
+
+    .btn-sm {
+      padding: 5px 14px;
+      font-size: .78rem;
+      border-radius: 5px
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid rgba(0, 230, 118, .3);
+      padding: 5px 12px;
+      font-size: .78rem;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all .2s
+    }
+
+    .btn-ghost:hover {
+      background: rgba(0, 230, 118, .1);
+      border-color: var(--accent)
+    }
+
+    .toolbar .info {
+      margin-left: auto;
+      color: var(--text-dim);
+      font-size: .82rem
+    }
+
+    .toolbar .info span {
+      color: var(--accent);
+      font-weight: 700
+    }
+
+    .toolbar .divider {
+      width: 1px;
+      height: 28px;
+      background: var(--border);
+      margin: 0 4px
+    }
+
+    .crawl-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      animation: slideDown .3s ease-out
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .crawl-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px
+    }
+
+    .crawl-header h3 {
+      font-size: .95rem;
+      color: var(--accent)
+    }
+
+    .crawl-stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 14px;
+      flex-wrap: wrap
+    }
+
+    .crawl-stat {
+      background: rgba(0, 0, 0, .2);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: .8rem;
+      color: var(--text-dim)
+    }
+
+    .crawl-stat span {
+      color: var(--accent);
+      font-weight: 700
+    }
+
+    .crawl-stat .err {
+      color: var(--danger)
+    }
+
+    .crawl-bar {
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 6px
+    }
+
+    .crawl-bar .fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--gold));
+      border-radius: 3px;
+      transition: width .4s ease
+    }
+
+    .crawl-bar-text {
+      font-size: .78rem;
+      color: var(--text-dim);
+      display: flex;
+      justify-content: space-between
+    }
+
+    .crawl-current {
+      margin-top: 10px;
+      font-size: .82rem;
+      color: var(--text)
+    }
+
+    .crawl-current .match-name {
+      color: var(--gold);
+      font-weight: 600
+    }
+
+    .crawl-logs {
+      margin-top: 12px;
+      max-height: 180px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, .25);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: .75rem;
+      font-family: 'Consolas', 'Monaco', monospace;
+      line-height: 1.7
+    }
+
+    .crawl-logs::-webkit-scrollbar {
+      width: 4px
+    }
+
+    .crawl-logs::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px
+    }
+
+    .crawl-logs .log-time {
+      color: var(--text-dim);
+      margin-right: 6px
+    }
+
+    .crawl-logs .log-ok {
+      color: var(--accent)
+    }
+
+    .crawl-logs .log-skip {
+      color: var(--draw)
+    }
+
+    .crawl-logs .log-err {
+      color: var(--danger)
+    }
+
+    .progress-wrap {
+      margin: 0 0 16px;
+      opacity: 0;
+      transition: opacity .3s
+    }
+
+    .progress-wrap.active {
+      opacity: 1
+    }
+
+    .progress-bar {
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden
+    }
+
+    .progress-bar .fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--gold));
+      border-radius: 2px;
+      transition: width .4s ease;
+      width: 0
+    }
+
+    .progress-text {
+      font-size: .75rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+      text-align: center
+    }
+
+    .table-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    thead {
+      background: rgba(0, 230, 118, .06)
+    }
+
+    th {
+      padding: 12px 14px;
+      text-align: left;
+      font-size: .78rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap
+    }
+
+    td {
+      padding: 10px 14px;
+      font-size: .85rem;
+      border-bottom: 1px solid rgba(30, 48, 80, .5);
+      vertical-align: middle
+    }
+
+    tbody tr {
+      transition: background .2s
+    }
+
+    tbody tr:hover {
+      background: var(--bg-card-hover)
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none
+    }
+
+    .team-cell {
+      font-weight: 600;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .score-cell {
+      font-weight: 800;
+      color: var(--gold);
+      font-size: 1rem;
+      text-align: center;
+      min-width: 60px
+    }
+
+    .league-tag {
+      font-size: .72rem;
+      color: var(--gold);
+      background: rgba(255, 214, 0, .08);
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-weight: 600;
+      white-space: nowrap
+    }
+
+    .id-tag {
+      font-size: .72rem;
+      color: var(--text-dim);
+      font-family: monospace
+    }
+
+    .recent-text {
+      font-size: .76rem;
+      line-height: 1.5;
+      color: var(--text)
+    }
+
+    .recent-text .w {
+      color: var(--win)
+    }
+
+    .recent-text .d {
+      color: var(--draw)
+    }
+
+    .recent-text .l {
+      color: var(--loss)
+    }
+
+    .empty {
+      text-align: center;
+      padding: 60px 0;
+      color: var(--text-dim)
+    }
+
+    .empty svg {
+      width: 48px;
+      height: 48px;
+      fill: var(--border);
+      margin-bottom: 8px
+    }
+
+    .popup-mask {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, .5);
+      z-index: 900;
+      animation: fadeIn .2s
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0
+      }
+
+      to {
+        opacity: 1
+      }
+    }
+
+    .popup {
+      position: fixed;
+      z-index: 1000;
+      background: var(--bg-card);
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, .6), 0 0 24px rgba(0, 230, 118, .1);
+      display: flex;
+      overflow: hidden;
+      animation: popUp .25s ease-out;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%)
+    }
+
+    @keyframes popUp {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(.95)
+      }
+
+      to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1)
+      }
+    }
+
+    .popup-left {
+      width: 320px;
+      min-width: 320px;
+      padding: 20px;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      background: rgba(0, 0, 0, .15)
+    }
+
+    .popup-right {
+      flex: 1;
+      position: relative;
+      min-width: 500px
+    }
+
+    .popup-right iframe {
+      width: 100%;
+      height: 100%;
+      border: none
+    }
+
+    .popup-close {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 10
+    }
+
+    .popup-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--accent);
+      padding-right: 40px
+    }
+
+    .popup-title .vs {
+      color: var(--gold);
+      margin: 0 6px
+    }
+
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(30, 48, 80, .4);
+      font-size: .82rem
+    }
+
+    .detail-row .label {
+      color: var(--text-dim)
+    }
+
+    .detail-row .value {
+      font-weight: 600;
+      text-align: right;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .detail-section {
+      margin-top: 14px
+    }
+
+    .detail-section h4 {
+      font-size: .75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 8px
+    }
+
+    .detail-section .recent-box {
+      background: rgba(0, 0, 0, .2);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: .78rem;
+      line-height: 1.7
+    }
+
+    .iframe-loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--text-dim);
+      font-size: .85rem
+    }
+
+    @media(max-width:768px) {
+      .toolbar input[type=text] {
+        width: 100%
+      }
+
+      .header h1 {
+        font-size: 1.5rem
+      }
+
+      .popup {
+        flex-direction: column;
+        width: 95vw !important;
+        height: 85vh !important
+      }
+
+      .popup-left {
+        width: 100%;
+        min-width: unset;
+        max-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid var(--border)
+      }
+
+      .popup-right {
+        min-width: unset
+      }
+    }
+  </style>
+</head>
+
+<body>
+  {% raw %}
+  <div id="app">
+    <div class="app-container">
+      <div class="header">
+        <h1>⚽ Football Data Hub</h1>
+        <p>Titan007 赛事数据查询平台</p>
+      </div>
+
+      <div class="toolbar">
+        <input type="text" v-model="searchId" @keyup.enter="searchById" placeholder="输入比赛 ID 查询，如 2992577" />
+        <button class="btn btn-primary" @click="searchById" :disabled="loading">🔍 查询</button>
+
+        <div class="divider"></div>
+
+        <span style="font-size:.82rem;color:var(--text-dim)">查询日期</span>
+        <input type="date" v-model="queryDate" :min="dateMin" :max="dateMax" @change="onQueryDateChange" />
+        <button class="btn btn-secondary" @click="loadByDate" :disabled="loading">📋 查询</button>
+
+        <div class="divider" v-if="!crawl.running && !showCrawlPanel"></div>
+
+        <template v-if="!crawl.running && !showCrawlPanel">
+          <span style="font-size:.82rem;color:var(--text-dim)">爬取日期</span>
+          <input type="date" v-model="crawlDate" :min="crawlDateMin" :max="crawlDateMax" />
+          <button class="btn btn-primary" @click="startCrawl"
+            style="background:linear-gradient(135deg,#ff6d00,#ff9100);color:#fff">🚀 开始爬取</button>
+        </template>
+
+        <div class="info" v-if="matches.length">共 <span>{{ total }}</span> 场比赛（{{ currentQueryLabel }}）</div>
+      </div>
+
+      <div class="crawl-panel" v-if="showCrawlPanel">
+        <div class="crawl-header">
+          <h3>{{ panelTitle }}</h3>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm btn-danger" v-if="crawl.running" @click="stopCrawl">⏹ 停止</button>
+            <button class="btn btn-sm btn-warning" v-if="isStoppedState" @click="resumeCrawl">▶️ 恢复爬取</button>
+            <button class="btn btn-sm btn-danger" v-if="isStoppedState || crawl.finished || crawl.error"
+              @click="closeCrawl">❌ 关闭</button>
+          </div>
+        </div>
+        <div class="crawl-stats">
+          <div class="crawl-stat">总计 <span>{{ crawl.total }}</span> 场</div>
+          <div class="crawl-stat">进度 <span>{{ crawl.current }}/{{ crawl.total }}</span></div>
+          <div class="crawl-stat">已入库 <span>{{ crawl.qualified }}</span></div>
+          <div class="crawl-stat">已跳过 <span>{{ crawl.skipped }}</span></div>
+          <div class="crawl-stat" v-if="crawl.error">错误 <span class="err">{{ crawl.error }}</span></div>
+          <div class="crawl-stat" v-if="crawl.crawl_date">日期 <span>{{ formatDisplayDate(crawl.crawl_date) }}</span>
+          </div>
+        </div>
+        <div class="crawl-bar">
+          <div class="fill" :style="{width: crawl.progress+'%'}"></div>
+        </div>
+        <div class="crawl-bar-text">
+          <span>{{ crawl.progress }}%</span>
+          <span v-if="crawl.current_match_name">当前: <span class="match-name">{{ crawl.current_match_name
+              }}</span></span>
+        </div>
+        <div class="crawl-logs" ref="logsEl">
+          <div v-for="(log, idx) in crawl.logs" :key="idx">
+            <span class="log-time">{{ log.time }}</span>
+            <span
+              :class="{'log-ok': log.msg.includes('已入库'), 'log-skip': log.msg.includes('已跳过'), 'log-err': log.msg.includes('出错')}">{{
+              log.msg }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="progress-wrap" :class="{active:loading}">
+        <div class="progress-bar">
+          <div class="fill" :style="{width: progress+'%'}"></div>
+        </div>
+        <div class="progress-text" v-if="loading">正在加载数据... {{ progress }}%</div>
+      </div>
+
+      <div class="empty" v-if="!loading && searched && !matches.length">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+        </svg>
+        <p>未找到匹配的比赛数据</p>
+      </div>
+
+      <div class="table-wrap" v-if="matches.length">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>联赛</th>
+              <th>时间</th>
+              <th>主队</th>
+              <th>比分</th>
+              <th>客队</th>
+              <th>主队近期</th>
+              <th>客队近期</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="m in matches" :key="m.match_id">
+              <td><span class="id-tag">{{ m.match_id }}</span></td>
+              <td><span class="league-tag" v-if="m.league_name">{{ m.league_name }}</span><span v-else
+                  style="color:var(--text-dim)">—</span></td>
+              <td style="font-size:.8rem;color:var(--text-dim)">{{ m.match_time || '—' }}</td>
+              <td><span class="team-cell" :title="m.home_team">{{ m.home_team || '—' }}</span></td>
+              <td class="score-cell">{{ m.home_score != null ? m.home_score : '-' }} : {{ m.away_score != null ?
+                m.away_score : '-' }}</td>
+              <td><span class="team-cell" :title="m.away_team">{{ m.away_team || '—' }}</span></td>
+              <td><span class="recent-text" v-if="m.home_recent_summary"
+                  v-html="formatSummary(m.home_recent_summary)"></span><span v-else
+                  style="color:var(--text-dim)">—</span></td>
+              <td><span class="recent-text" v-if="m.away_recent_summary"
+                  v-html="formatSummary(m.away_recent_summary)"></span><span v-else
+                  style="color:var(--text-dim)">—</span></td>
+              <td><button class="btn-ghost" @click="openPopup($event, m)">详情</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="popup-mask" v-if="popupVisible" @click="closePopup"></div>
+    <div class="popup" v-if="popupVisible" style="width:90vw;max-width:1200px;height:80vh;max-height:700px">
+      <div class="popup-left">
+        <div class="popup-title">
+          {{ activeMatch.home_team || '—' }}<span class="vs">VS</span>{{ activeMatch.away_team || '—' }}
+        </div>
+        <div class="detail-row"><span class="label">比赛 ID</span><span class="value">{{ activeMatch.match_id }}</span>
+        </div>
+        <div class="detail-row"><span class="label">联赛</span><span class="value">{{ activeMatch.league_name || '—'
+            }}</span></div>
+        <div class="detail-row"><span class="label">时间</span><span class="value">{{ activeMatch.match_time || '—'
+            }}</span></div>
+        <div class="detail-row"><span class="label">比分</span><span class="value" style="color:var(--gold)">{{
+            activeMatch.home_score != null ? activeMatch.home_score : '-' }} : {{ activeMatch.away_score != null ?
+            activeMatch.away_score : '-' }}</span></div>
+        <div class="detail-row"><span class="label">状态</span><span class="value">{{ activeMatch.match_status || '—'
+            }}</span></div>
+        <div class="detail-row"><span class="label">更新时间</span><span class="value">{{ activeMatch.updated_at || '—'
+            }}</span></div>
+        <div class="detail-section" v-if="activeMatch.home_recent_summary">
+          <h4>主队近期战绩</h4>
+          <div class="recent-box" v-html="formatSummary(activeMatch.home_recent_summary)"></div>
+        </div>
+        <div class="detail-section" v-if="activeMatch.away_recent_summary">
+          <h4>客队近期战绩</h4>
+          <div class="recent-box" v-html="formatSummary(activeMatch.away_recent_summary)"></div>
+        </div>
+      </div>
+      <div class="popup-right">
+        <div class="popup-close">
+          <a v-if="activeMatch.source_url" :href="activeMatch.source_url" target="_blank"
+            class="btn btn-sm btn-secondary" style="font-size:.7rem;text-decoration:none;margin-right:6px">新窗口打开</a>
+          <button class="btn btn-sm btn-primary" @click="closePopup">关闭</button>
+        </div>
+        <iframe :src="proxyUrl(activeMatch.source_url)" @load="iframeLoaded=true"
+          style="width:100%;height:100%;border:none"></iframe>
+        <div class="iframe-loading" v-if="!iframeLoaded">页面加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, computed, nextTick, onMounted, onUnmounted } = Vue
+    createApp({
+      setup() {
+        const searchId = ref('')
+        const matches = ref([])
+        const total = ref(0)
+        const loading = ref(false)
+        const searched = ref(false)
+        const progress = ref(0)
+        const popupVisible = ref(false)
+        const activeMatch = reactive({})
+        const iframeLoaded = ref(false)
+        const logsEl = ref(null)
+
+        const now = new Date()
+        const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0')
+        const yesterday = new Date(now.getTime() - 86400000)
+        const yesterdayStr = yesterday.getFullYear() + '-' + String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + String(yesterday.getDate()).padStart(2, '0')
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000)
+        const dateMin = sevenDaysAgo.getFullYear() + '-' + String(sevenDaysAgo.getMonth() + 1).padStart(2, '0') + '-' + String(sevenDaysAgo.getDate()).padStart(2, '0')
+        const dateMax = yesterdayStr
+
+        const crawlDate = ref(yesterdayStr)
+        const crawlDateMin = dateMin
+        const crawlDateMax = dateMax
+
+        const queryDate = ref(yesterdayStr)
+
+        const crawl = reactive({
+          running: false, progress: 0, total: 0, current: 0,
+          current_match_id: '', current_match_name: '',
+          qualified: 0, skipped: 0, finished: false, error: null, logs: [],
+          crawl_date: null,
+        })
+
+        let crawlPollTimer = null
+        let dataRefreshTimer = null
+
+        function simulateProgress() {
+          progress.value = 0
+          let p = 0
+          const iv = setInterval(() => {
+            if (p >= 90) { clearInterval(iv); return }
+            p += Math.random() * 15
+            if (p > 90) p = 90
+            progress.value = Math.round(p)
+          }, 200)
+          return iv
+        }
+
+        async function fetchMatches(params = '') {
+          loading.value = true
+          searched.value = true
+          stopDataRefresh()
+          const iv = simulateProgress()
+          try {
+            const resp = await fetch('/api/matches' + params)
+            const data = await resp.json()
+            matches.value = data.matches
+            total.value = data.total
+            if (data.query_date && params === '') {
+              const d = data.query_date
+              queryDate.value = d.substring(0, 4) + '-' + d.substring(4, 6) + '-' + d.substring(6, 8)
+            }
+            progress.value = 100
+          } catch (e) {
+            console.error(e)
+            matches.value = []
+            total.value = 0
+          } finally {
+            clearInterval(iv)
+            progress.value = 100
+            setTimeout(() => { loading.value = false; progress.value = 0 }, 400)
+          }
+        }
+
+        function searchById() {
+          const id = searchId.value.trim()
+          if (!id) return
+          fetchMatches('?match_id=' + encodeURIComponent(id))
+        }
+
+        function loadAll() {
+          searchId.value = fetchMatches('')
+        }
+
+        function loadByDate() {
+          searchId.value = ''
+          const d = queryDate.value.replace(/-/g, '')
+          fetchMatches('?date=' + d)
+        }
+
+        function onQueryDateChange() {
+        }
+
+        function formatDisplayDate(dateStr) {
+          if (!dateStr || dateStr.length !== 8) return dateStr || ''
+          return dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8)
+        }
+
+        const panelTitle = computed(() => {
+          if (crawl.finished) return '✅ 爬取完成'
+          if (crawl.error) return '❌ 爬取出错'
+          if (!crawl.running && crawl.crawl_date && !crawl.finished && !crawl.error) return '⏸ 爬取已暂停'
+          return '🔄 正在爬取...'
+        })
+
+        const isStoppedState = computed(() => {
+          return !crawl.running && crawl.crawl_date && !crawl.finished && !crawl.error && (crawl.qualified > 0 || crawl.skipped > 0 || crawl.total > 0)
+        })
+
+        const showCrawlPanel = computed(() => {
+          return crawl.running || crawl.finished || crawl.error || isStoppedState.value
+        })
+
+        const currentQueryLabel = computed(() => {
+          return formatDisplayDate(queryDate.value.replace(/-/g, ''))
+        })
+
+        function startDataRefresh() {
+          stopDataRefresh()
+          if (!crawl.running || !crawl.crawl_date) return
+          dataRefreshTimer = setInterval(() => {
+            const d = crawl.crawl_date
+            fetch('/api/matches?date=' + d)
+              .then(r => r.json())
+              .then(data => {
+                matches.value = data.matches
+                total.value = data.total
+              })
+              .catch(() => { })
+          }, 2000)
+        }
+
+        function stopDataRefresh() {
+          if (dataRefreshTimer) { clearInterval(dataRefreshTimer); dataRefreshTimer = null }
+        }
+
+        async function startCrawl() {
+          const dateStr = crawlDate.value.replace(/-/g, '')
+          const listUrl = 'https://bf.titan007.com/football/Over_' + dateStr + '.htm'
+          try {
+            const resp = await fetch('/api/crawl/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ list_url: listUrl, crawl_date: dateStr })
+            })
+            if (resp.status === 409) {
+              alert('爬取正在进行中，请等待完成')
+              return
+            }
+            const result = await resp.json()
+            Object.assign(crawl, { running: true, progress: 0, total: 0, current: 0, current_match_id: '', current_match_name: '', qualified: 0, skipped: 0, finished: false, error: null, logs: [], crawl_date: result.crawl_date })
+            startCrawlPoll()
+            startDataRefresh()
+          } catch (e) {
+            console.error(e)
+          }
+        }
+
+        async function stopCrawl() {
+          try {
+            await fetch('/api/crawl/stop', { method: 'POST' })
+          } catch (e) { console.error(e) }
+        }
+
+        async function resumeCrawl() {
+          const dateStr = crawl.crawl_date
+          try {
+            const resp = await fetch('/api/crawl/resume', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ crawl_date: dateStr })
+            })
+            if (resp.status === 409) {
+              alert('爬取正在进行中')
+              return
+            }
+            Object.assign(crawl, { running: true, progress: 0, total: 0, current: 0, current_match_id: '', current_match_name: '', qualified: 0, skipped: 0, finished: false, error: null, logs: [], crawl_date: dateStr })
+            startCrawlPoll()
+            startDataRefresh()
+          } catch (e) { console.error(e) }
+        }
+
+        async function closeCrawl() {
+          try {
+            await fetch('/api/crawl/close', { method: 'POST' })
+          } catch (e) { console.error(e) }
+          Object.assign(crawl, { running: false, progress: 0, total: 0, current: 0, current_match_id: '', current_match_name: '', qualified: 0, skipped: 0, finished: false, error: null, logs: [], crawl_date: null })
+          stopCrawlPoll()
+          stopDataRefresh()
+          loadByDate()
+        }
+
+        function dismissCrawl() {
+          closeCrawl()
+        }
+
+        function startCrawlPoll() {
+          stopCrawlPoll()
+          crawlPollTimer = setInterval(async () => {
+            try {
+              const resp = await fetch('/api/crawl/status')
+              const data = await resp.json()
+              Object.assign(crawl, data)
+              await nextTick()
+              if (logsEl.value) logsEl.value.scrollTop = logsEl.value.scrollHeight
+              if ((data.finished || data.error) && !data.running) {
+                stopCrawlPoll()
+                stopDataRefresh()
+                loadByDate()
+              }
+            } catch (e) { console.error(e) }
+          }, 1000)
+        }
+
+        function stopCrawlPoll() {
+          if (crawlPollTimer) { clearInterval(crawlPollTimer); crawlPollTimer = null }
+        }
+
+        onMounted(async () => {
+          try {
+            const resp = await fetch('/api/crawl/status')
+            const data = await resp.json()
+            if (data.running) {
+              Object.assign(crawl, data)
+              startCrawlPoll()
+              startDataRefresh()
+            } else {
+              loadByDate()
+            }
+          } catch (e) {
+            loadByDate()
+          }
+        })
+
+        onUnmounted(() => { stopCrawlPoll(); stopDataRefresh() })
+
+        function openPopup(event, m) {
+          Object.assign(activeMatch, m)
+          iframeLoaded.value = false
+          popupVisible.value = true
+        }
+
+        function closePopup() {
+          popupVisible.value = false
+          Object.keys(activeMatch).forEach(k => delete activeMatch[k])
+        }
+
+        function proxyUrl(url) {
+          if (!url) return ''
+          return url.replace('https://zq.titan007.com', '/proxy')
+        }
+
+        function formatSummary(text) {
+          if (!text) return ''
+          return text
+            .replace(/胜(\d+)/g, '<span class="w">胜$1</span>')
+            .replace(/平(\d+)/g, '<span class="d">平$1</span>')
+            .replace(/负(\d+)/g, '<span class="l">负$1</span>')
+        }
+
+        return {
+          searchId, matches, total, loading, searched, progress, popupVisible, activeMatch,
+          iframeLoaded, logsEl, crawlDate, crawlDateMin, crawlDateMax,
+          queryDate, dateMin, dateMax, crawl,
+          searchById, loadAll, loadByDate, onQueryDateChange,
+          startCrawl, stopCrawl, resumeCrawl, closeCrawl, dismissCrawl,
+          openPopup, closePopup, proxyUrl, formatSummary,
+          panelTitle, isStoppedState, showCrawlPanel, currentQueryLabel, formatDisplayDate,
+        }
+      }
+    }).mount('#app')
+  </script>
+  {% endraw %}
+</body>
+
+</html>

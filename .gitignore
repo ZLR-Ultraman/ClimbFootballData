@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+playwright_profile/
+debug.log
+*.sqlite3
+*.db
+.env
+.venv/
+venv/
