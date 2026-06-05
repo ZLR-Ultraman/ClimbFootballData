@@ -10,10 +10,11 @@
 
 Football Data Hub 是一个基于 **Flask + Vue 3 + Playwright** 的足球赛事数据管理平台，核心功能包括：
 
-- **自动爬取**：从 Titan007（球探体育）抓取足球比赛数据
+- **自动爬取**：从 Titan007（球探体育）抓取足球比赛数据（含基础信息、亚让盘口、进球数）
 - **智能过滤**：仅入库符合条件（主/客队近10场+战绩完整）的比赛
 - **日期管理**：按爬取日期隔离数据，支持多日查询与对比
 - **详情展示**：通过反向代理在 iframe 中嵌入原始分析页面
+- **赔率展示**：父子列表形式展示亚让盘口和进球数数据（36*公司）
 - **实时监控**：爬取进度实时展示，支持暂停/恢复/关闭
 
 ### 1.2 技术栈
@@ -32,12 +33,21 @@ Football Data Hub 是一个基于 **Flask + Vue 3 + Playwright** 的足球赛事
 ```
 ClimbFootballData/
 ├── app.py              # Flask 主程序（API路由 + 反向代理）
-├── titan_scraper.py    # Playwright 爬虫核心逻辑
 ├── db_manager.py       # SQLite 数据库操作层
-├── templates/
-│   └── index.html      # Vue 3 前端单页
 ├── requirements.txt    # Python 依赖
-└── football_data.sqlite3 # SQLite 数据库文件（运行后自动生成）
+├── football_data.sqlite3 # SQLite 数据库文件（运行后自动生成）
+│
+├── services/           # 业务服务层
+│   ├── crawler_service.py    # 爬虫执行服务
+│   ├── crawl_state_service.py # 状态与批次汇总服务
+│   ├── log_service.py        # 日志查询服务
+│   └── proxy_service.py      # 反向代理服务
+│
+├── scraper/            # 爬虫实现
+│   └── titan_scraper.py      # Titan007 数据抓取
+│
+└── templates/
+    └── index.html      # Vue 3 前端单页（内联脚本）
 ```
 
 ---
@@ -51,6 +61,8 @@ ClimbFootballData/
 - **列表页**：`https://bf.titan007.com/football/Over_{YYYYMMDD}.htm`
 - **详情页**：`https://zq.titan007.com/analysis/{match_id}cn.htm`
 - **动态 API**：`https://zq.titan007.com/default/getScheduleInfo?sid={match_id}&t={timestamp}`
+- **亚让盘口页**：`https://vip.titan007.com/AsianOdds_n.aspx?id={match_id}&l=0`
+- **进球数页**：`https://vip.titan007.com/OverDown_n.aspx?id={match_id}&l=0`
 
 #### 爬取流程
 
@@ -66,9 +78,13 @@ Playwright 打开列表页 → 解析 <table id="table_live"> → 提取所有�
     ▼ (逐场遍历)
 Playwright 打开详情页 → 提取 hometeam/guestteam 变量 → 解析近 N 场战绩表格
     │
-    ├── 近期场次 >= 10 场？ ──→ 合并数据 → 写入 SQLite ✓
-    │
-    └── 不满足条件 ──→ 跳过 ✗
+    ├── 近期场次 >= 10 场？
+    │   │
+    │   ├── 是 ──→ 抓取亚让盘口页面（36*公司数据）
+    │   │         抓取进球数页面（36*公司数据）
+    │   │         合并所有数据 → 写入 SQLite ✓
+    │   │
+    │   └── 否 ──→ 跳过 ✗
     │
     ▼
 全部完成 → 记录 crawl_session 状态
@@ -232,6 +248,42 @@ Titan007 的详情页设置了安全响应头（`X-Frame-Options`、`Content-Sec
 │ updated_at           TEXT           │
 └──────────────────────────────────────┘
 
+           │ 1:N
+           ▼
+┌──────────────────────────────────────┐
+│          asian_odds                  │ ← 亚让盘口数据
+├──────────────────────────────────────┤
+│ id (PK)              INTEGER         │
+│ match_id            TEXT ← FK       │
+│ company_id          INTEGER         │
+│ company_name        TEXT            │
+│ init_home_odds      REAL            │
+│ init_handicap       TEXT            │
+│ init_away_odds      REAL            │
+│ final_home_odds     REAL            │
+│ final_handicap      TEXT            │
+│ final_away_odds     REAL            │
+│ crawl_date          TEXT            │
+└──────────────────────────────────────┘
+
+           │ 1:N
+           ▼
+┌──────────────────────────────────────┐
+│        over_under_odds               │ ← 进球数数据
+├──────────────────────────────────────┤
+│ id (PK)              INTEGER         │
+│ match_id            TEXT ← FK       │
+│ company_id          INTEGER         │
+│ company_name        TEXT            │
+│ init_over_odds      REAL            │
+│ init_goal_line      TEXT            │
+│ init_under_odds     REAL            │
+│ final_over_odds     REAL            │
+│ final_goal_line     TEXT            │
+│ final_under_odds    REAL            │
+│ crawl_date          TEXT            │
+└──────────────────────────────────────┘
+
 ┌──────────────────────────────────────┐
 │          crawl_sessions              │
 ├──────────────────────────────────────┤
@@ -261,6 +313,32 @@ Titan007 的详情页设置了安全响应头（`X-Frame-Options`、`Content-Sec
 - `赢率`：赢盘率（含小数如 42.8%）
 - `大`：大球率
 - `单率`：单双率
+
+**asian_odds（亚让盘口）** 字段说明：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| company_id | INTEGER | 公司ID（36*公司为8或名称匹配） |
+| company_name | TEXT | 公司名称（如"36*"） |
+| init_home_odds | REAL | 初盘主队赔率 |
+| init_handicap | TEXT | 初盘盘口（如"-1"、"0.5"） |
+| init_away_odds | REAL | 初盘客队赔率 |
+| final_home_odds | REAL | 终盘主队赔率 |
+| final_handicap | TEXT | 终盘盘口 |
+| final_away_odds | REAL | 终盘客队赔率 |
+
+**over_under_odds（进球数）** 字段说明：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| company_id | INTEGER | 公司ID（36*公司为8或名称匹配） |
+| company_name | TEXT | 公司名称（如"36*"） |
+| init_over_odds | REAL | 初盘大球赔率 |
+| init_goal_line | TEXT | 初盘进球数线（如"2.5"、"3"） |
+| init_under_odds | REAL | 初盘小球赔率 |
+| final_over_odds | REAL | 终盘大球赔率 |
+| final_goal_line | TEXT | 终盘进球数线 |
+| final_under_odds | REAL | 终盘小球赔率 |
 
 ---
 
@@ -314,6 +392,44 @@ Titan007 的详情页设置了安全响应头（`X-Frame-Options`、`Content-Sec
   "dates": ["20260602", "20260601", "20260531", "20260530"]
 }
 ```
+
+#### `GET /api/odds/<match_id>`
+
+查询指定比赛的赔率数据（亚让盘口 + 进球数）。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `match_id` | string | 是 | 比赛ID |
+
+**响应示例：**
+
+```json
+{
+  "asian": {
+    "company_name": "36*",
+    "init_home_odds": 0.95,
+    "init_handicap": "-1",
+    "init_away_odds": 0.89,
+    "final_home_odds": 1.02,
+    "final_handicap": "-1.25",
+    "final_away_odds": 0.82
+  },
+  "over_under": {
+    "company_name": "36*",
+    "init_over_odds": 0.92,
+    "init_goal_line": "2.5",
+    "init_under_odds": 0.94,
+    "final_over_odds": 1.05,
+    "final_goal_line": "2.75",
+    "final_under_odds": 0.81
+  }
+}
+```
+
+**说明：**
+- `asian`：亚让盘口数据（可能为null，表示无数据）
+- `over_under`：进球数数据（可能为null，表示无数据）
+- 数据来源：爬取时同步抓取的36*公司数据
 
 ### 4.2 爬取控制
 
@@ -502,6 +618,32 @@ python app.py
 
 弹窗顶部提供 **「新窗口打开」** 和 **「关闭」** 按钮。
 
+#### 步骤六：查看赔率数据
+
+1. 在数据表格中找到目标比赛
+2. 点击行左侧的 **▶ 图标** 展开子行
+3. 子行显示该比赛的赔率数据，分为两个板块：
+
+**📊 亚让盘口板块：**
+
+| 区域 | 内容 |
+|------|------|
+| 初盘卡片 | 开盘时的主队赔率 / 盘口 / 客队赔率 |
+| 终盘卡片 | 封盘时的主队赔率 / 盘口 / 客队赔率 |
+| 箭头指示 | 初盘 → 终盘变化方向 |
+
+**⚽ 进球数板块：**
+
+| 区域 | 内容 |
+|------|------|
+| 初盘卡片 | 开盘时的大球赔率 / 进球数线 / 小球赔率 |
+| 终盘卡片 | 封盘时的大球赔率 / 进球数线 / 小球赔率 |
+| 箭头指示 | 初盘 → 终盘变化方向 |
+
+4. 再次点击 ▶ 可收起子行
+
+> **注意**：仅展示 36* 公司的赔率数据。如果某场比赛没有抓取到赔率数据，展开后会显示"暂无数据"。
+
 ### 5.3 日常使用流程
 
 ```
@@ -517,8 +659,9 @@ python app.py
         ▼ (等待完成)
     自动显示最新数据
         │
-        ▼
-    点「详情」查看完整的 Titan007 分析页面
+        ├─ 点「详情」查看完整的 Titan007 分析页面
+        │
+        └─ 点击 ▶ 展开查看亚让盘口和进球数数据
 ```
 
 ---
@@ -598,4 +741,4 @@ taskkill /F /PID <进程ID>
 
 ---
 
-*文档版本：v2.0 | 最后更新：2026-06-04*
+*文档版本：v3.0 | 最后更新：2026-06-05*
