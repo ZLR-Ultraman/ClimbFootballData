@@ -59,13 +59,47 @@ class DatabaseManager:
 
                 CREATE TABLE IF NOT EXISTS crawl_sessions (
                     id TEXT PRIMARY KEY,
+                    batch_id TEXT,
+                    crawl_date TEXT,
                     status TEXT DEFAULT 'running',
                     total INTEGER DEFAULT 0,
                     qualified INTEGER DEFAULT 0,
                     skipped INTEGER DEFAULT 0,
+                    failed INTEGER DEFAULT 0,
                     started_at TEXT,
                     finished_at TEXT,
+                    error_message TEXT,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS crawl_batches (
+                    batch_id TEXT PRIMARY KEY,
+                    start_date TEXT,
+                    end_date TEXT,
+                    status TEXT DEFAULT 'running',
+                    total_days INTEGER DEFAULT 0,
+                    finished_days INTEGER DEFAULT 0,
+                    success_days INTEGER DEFAULT 0,
+                    failed_days INTEGER DEFAULT 0,
+                    total_matches INTEGER DEFAULT 0,
+                    qualified_matches INTEGER DEFAULT 0,
+                    skipped_matches INTEGER DEFAULT 0,
+                    failed_matches INTEGER DEFAULT 0,
+                    started_at TEXT,
+                    finished_at TEXT,
+                    error_message TEXT,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS crawl_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    batch_id TEXT,
+                    crawl_date TEXT,
+                    match_id TEXT,
+                    level TEXT DEFAULT 'info',
+                    log_type TEXT DEFAULT 'day',
+                    message TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
 
                 CREATE TABLE IF NOT EXISTS crawl_state (
@@ -85,6 +119,22 @@ class DatabaseManager:
                 pass
             try:
                 conn.execute("ALTER TABLE matches ADD COLUMN crawl_date TEXT")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE crawl_sessions ADD COLUMN batch_id TEXT")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE crawl_sessions ADD COLUMN crawl_date TEXT")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE crawl_sessions ADD COLUMN failed INTEGER DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE crawl_sessions ADD COLUMN error_message TEXT")
             except Exception:
                 pass
 
@@ -195,31 +245,87 @@ class DatabaseManager:
             return cursor.rowcount
 
     def upsert_crawl_session(self, session_id: str, status: str = "running", total: int = 0,
-                              qualified: int = 0, skipped: int = 0, started_at: str | None = None,
-                              finished_at: str | None = None) -> None:
+                              qualified: int = 0, skipped: int = 0, failed: int = 0,
+                              started_at: str | None = None,
+                              finished_at: str | None = None,
+                              batch_id: str | None = None,
+                              crawl_date: str | None = None,
+                              error_message: str | None = None) -> None:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO crawl_sessions (id, status, total, qualified, skipped, started_at, finished_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO crawl_sessions (id, batch_id, crawl_date, status, total, qualified, skipped, failed, started_at, finished_at, error_message, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(id) DO UPDATE SET
+                    batch_id=COALESCE(excluded.batch_id, crawl_sessions.batch_id),
+                    crawl_date=COALESCE(excluded.crawl_date, crawl_sessions.crawl_date),
                     status=excluded.status,
                     total=COALESCE(excluded.total, crawl_sessions.total),
                     qualified=COALESCE(excluded.qualified, crawl_sessions.qualified),
                     skipped=COALESCE(excluded.skipped, crawl_sessions.skipped),
+                    failed=COALESCE(excluded.failed, crawl_sessions.failed),
                     started_at=CASE WHEN excluded.started_at IS NOT NULL THEN excluded.started_at ELSE crawl_sessions.started_at END,
                     finished_at=COALESCE(excluded.finished_at, crawl_sessions.finished_at),
+                    error_message=COALESCE(excluded.error_message, crawl_sessions.error_message),
                     updated_at=CURRENT_TIMESTAMP
                 """,
-                (session_id, status, total, qualified, skipped, started_at, finished_at),
+                (session_id, batch_id, crawl_date, status, total, qualified, skipped, failed, started_at, finished_at, error_message),
+            )
+
+    def upsert_crawl_batch(self, batch_id: str, start_date: str, end_date: str, status: str = "running",
+                           total_days: int = 0, finished_days: int = 0, success_days: int = 0,
+                           failed_days: int = 0, total_matches: int = 0, qualified_matches: int = 0,
+                           skipped_matches: int = 0, failed_matches: int = 0,
+                           started_at: str | None = None, finished_at: str | None = None,
+                           error_message: str | None = None) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO crawl_batches (batch_id, start_date, end_date, status, total_days, finished_days, success_days, failed_days, total_matches, qualified_matches, skipped_matches, failed_matches, started_at, finished_at, error_message, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(batch_id) DO UPDATE SET
+                    start_date=excluded.start_date,
+                    end_date=excluded.end_date,
+                    status=excluded.status,
+                    total_days=COALESCE(excluded.total_days, crawl_batches.total_days),
+                    finished_days=COALESCE(excluded.finished_days, crawl_batches.finished_days),
+                    success_days=COALESCE(excluded.success_days, crawl_batches.success_days),
+                    failed_days=COALESCE(excluded.failed_days, crawl_batches.failed_days),
+                    total_matches=COALESCE(excluded.total_matches, crawl_batches.total_matches),
+                    qualified_matches=COALESCE(excluded.qualified_matches, crawl_batches.qualified_matches),
+                    skipped_matches=COALESCE(excluded.skipped_matches, crawl_batches.skipped_matches),
+                    failed_matches=COALESCE(excluded.failed_matches, crawl_batches.failed_matches),
+                    started_at=CASE WHEN excluded.started_at IS NOT NULL THEN excluded.started_at ELSE crawl_batches.started_at END,
+                    finished_at=COALESCE(excluded.finished_at, crawl_batches.finished_at),
+                    error_message=COALESCE(excluded.error_message, crawl_batches.error_message),
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (batch_id, start_date, end_date, status, total_days, finished_days, success_days, failed_days,
+                 total_matches, qualified_matches, skipped_matches, failed_matches, started_at, finished_at, error_message),
+            )
+
+    def add_crawl_log(self, message: str, batch_id: str | None = None, crawl_date: str | None = None,
+                      match_id: str | None = None, level: str = "info", log_type: str = "day") -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO crawl_logs (batch_id, crawl_date, match_id, level, log_type, message, created_at) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                (batch_id, crawl_date, match_id, level, log_type, message),
             )
 
     def get_crawl_session(self, session_id: str) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT id, status, total, qualified, skipped, started_at, finished_at, updated_at "
+                "SELECT id, batch_id, crawl_date, status, total, qualified, skipped, failed, started_at, finished_at, error_message, updated_at "
                 "FROM crawl_sessions WHERE id=?",
                 (session_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_crawl_batch(self, batch_id: str) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT batch_id, start_date, end_date, status, total_days, finished_days, success_days, failed_days, total_matches, qualified_matches, skipped_matches, failed_matches, started_at, finished_at, error_message, updated_at FROM crawl_batches WHERE batch_id=?",
+                (batch_id,),
             ).fetchone()
             return dict(row) if row else None
 

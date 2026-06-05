@@ -246,6 +246,142 @@
       color: var(--accent)
     }
 
+    .crawl-section-title {
+      margin: 14px 0 8px;
+      font-size: .78rem;
+      letter-spacing: .5px;
+      color: var(--gold);
+      text-transform: uppercase
+    }
+
+    .crawl-bars {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 8px
+    }
+
+    .crawl-bar-group {
+      background: rgba(0, 0, 0, .16);
+      border: 1px solid rgba(30, 48, 80, .8);
+      border-radius: 8px;
+      padding: 10px
+    }
+
+    .crawl-bar-label {
+      font-size: .75rem;
+      color: var(--text-dim);
+      margin-bottom: 6px
+    }
+
+    .current-match-card {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      background: rgba(0, 0, 0, .16);
+      border: 1px solid rgba(30, 48, 80, .8);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: .82rem;
+      margin-bottom: 10px
+    }
+
+    .current-match-card .label {
+      color: var(--text-dim);
+      margin-right: 8px
+    }
+
+    .current-match-card .value {
+      font-weight: 600;
+      color: var(--text)
+    }
+
+    .log-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 10px 0 8px
+    }
+
+    .log-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap
+    }
+
+    .log-line {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin-bottom: 4px
+    }
+
+    .log-tag {
+      color: var(--gold);
+      flex: none
+    }
+
+    .log-drawer-mask {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 10, 20, .72);
+      backdrop-filter: blur(4px);
+      z-index: 60;
+    }
+
+    .log-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: min(560px, 94vw);
+      height: 100vh;
+      background: var(--bg-card);
+      border-left: 1px solid var(--border);
+      z-index: 61;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -12px 0 40px rgba(0, 0, 0, .35);
+    }
+
+    .log-drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    .log-drawer-title {
+      font-size: 1rem;
+      color: var(--accent);
+      font-weight: 700
+    }
+
+    .log-drawer-meta {
+      color: var(--text-dim);
+      font-size: .78rem;
+      margin-top: 4px
+    }
+
+    .log-drawer-body {
+      padding: 14px 18px 18px;
+      overflow: auto;
+      flex: 1
+    }
+
+    .log-drawer-body::-webkit-scrollbar,
+    .crawl-logs::-webkit-scrollbar {
+      width: 8px
+    }
+
+    .log-drawer-body::-webkit-scrollbar-thumb,
+    .crawl-logs::-webkit-scrollbar-thumb {
+      background: rgba(0, 230, 118, .25);
+      border-radius: 8px
+    }
+
     .crawl-stats {
       display: flex;
       gap: 16px;
@@ -670,14 +806,17 @@
         <span style="font-size:.82rem;color:var(--text-dim)">查询日期</span>
         <input type="date" v-model="queryDate" :min="dateMin" :max="dateMax" @change="onQueryDateChange" />
         <button class="btn btn-secondary" @click="loadByDate" :disabled="loading">📋 查询</button>
+        <button class="btn btn-secondary" @click="openLogsDrawer" :disabled="loading">📝 查看日志</button>
 
         <div class="divider" v-if="!crawl.running && !showCrawlPanel"></div>
 
         <template v-if="!crawl.running && !showCrawlPanel">
-          <span style="font-size:.82rem;color:var(--text-dim)">爬取日期</span>
-          <input type="date" v-model="crawlDate" :min="crawlDateMin" :max="crawlDateMax" />
+          <span style="font-size:.82rem;color:var(--text-dim)">开始日期</span>
+          <input type="date" v-model="crawlStartDate" :min="crawlDateMin" :max="crawlDateMax" />
+          <span style="font-size:.82rem;color:var(--text-dim)">结束日期</span>
+          <input type="date" v-model="crawlEndDate" :min="crawlDateMin" :max="crawlDateMax" />
           <button class="btn btn-primary" @click="startCrawl"
-            style="background:linear-gradient(135deg,#ff6d00,#ff9100);color:#fff">🚀 开始爬取</button>
+            style="background:linear-gradient(135deg,#ff6d00,#ff9100);color:#fff">🚀 开始批量爬取</button>
         </template>
 
         <div class="info" v-if="matches.length">共 <span>{{ total }}</span> 场比赛（{{ currentQueryLabel }}）</div>
@@ -687,36 +826,63 @@
         <div class="crawl-header">
           <h3>{{ panelTitle }}</h3>
           <div style="display:flex;gap:8px">
+            <button class="btn btn-sm btn-secondary" @click="openLogsDrawer">📝 日志</button>
             <button class="btn btn-sm btn-danger" v-if="crawl.running" @click="stopCrawl">⏹ 停止</button>
             <button class="btn btn-sm btn-warning" v-if="isStoppedState" @click="resumeCrawl">▶️ 恢复爬取</button>
             <button class="btn btn-sm btn-danger" v-if="isStoppedState || crawl.finished || crawl.error"
               @click="closeCrawl">❌ 关闭</button>
           </div>
         </div>
+
+        <div class="crawl-section-title">批次概览</div>
         <div class="crawl-stats">
-          <div class="crawl-stat">总计 <span>{{ crawl.total }}</span> 场</div>
-          <div class="crawl-stat">进度 <span>{{ crawl.current }}/{{ crawl.total }}</span></div>
-          <div class="crawl-stat">已入库 <span>{{ crawl.qualified }}</span></div>
-          <div class="crawl-stat">已跳过 <span>{{ crawl.skipped }}</span></div>
+          <div class="crawl-stat">起止日期 <span>{{ formatDisplayDate(crawl.start_date) }} ~ {{ formatDisplayDate(crawl.end_date) }}</span></div>
+          <div class="crawl-stat">批次进度 <span>{{ crawl.batch_summary.finished_days }}/{{ crawl.batch_summary.total_days }}</span> 天</div>
+          <div class="crawl-stat">成功天数 <span>{{ crawl.batch_summary.success_days }}</span></div>
+          <div class="crawl-stat">失败天数 <span>{{ crawl.batch_summary.failed_days }}</span></div>
+          <div class="crawl-stat">总入库 <span>{{ crawl.batch_summary.qualified_matches }}</span></div>
+          <div class="crawl-stat">总跳过 <span>{{ crawl.batch_summary.skipped_matches }}</span></div>
+          <div class="crawl-stat">总失败 <span>{{ crawl.batch_summary.failed_matches }}</span></div>
           <div class="crawl-stat" v-if="crawl.error">错误 <span class="err">{{ crawl.error }}</span></div>
-          <div class="crawl-stat" v-if="crawl.crawl_date">日期 <span>{{ formatDisplayDate(crawl.crawl_date) }}</span>
+        </div>
+
+        <div class="crawl-section-title">当天进度</div>
+        <div class="crawl-stats">
+          <div class="crawl-stat">当前日期 <span>{{ formatDisplayDate(crawl.crawl_date) }}</span></div>
+          <div class="crawl-stat">当日进度 <span>{{ crawl.current }}/{{ crawl.total }}</span> 场</div>
+          <div class="crawl-stat">当日入库 <span>{{ crawl.qualified }}</span></div>
+          <div class="crawl-stat">当日跳过 <span>{{ crawl.skipped }}</span></div>
+          <div class="crawl-stat">当日失败 <span>{{ crawl.failed }}</span></div>
+          <div class="crawl-stat">第 <span>{{ crawl.day_index }}</span> / {{ crawl.day_total }} 天</div>
+        </div>
+
+        <div class="crawl-bars">
+          <div class="crawl-bar-group">
+            <div class="crawl-bar-label">批次进度</div>
+            <div class="crawl-bar">
+              <div class="fill" :style="{width: batchProgress+'%'}"></div>
+            </div>
+            <div class="crawl-bar-text">
+              <span>{{ batchProgress }}%</span>
+              <span>{{ crawl.batch_summary.finished_days }}/{{ crawl.batch_summary.total_days }} 天</span>
+            </div>
+          </div>
+          <div class="crawl-bar-group">
+            <div class="crawl-bar-label">当天进度</div>
+            <div class="crawl-bar">
+              <div class="fill" :style="{width: crawl.progress+'%'}"></div>
+            </div>
+            <div class="crawl-bar-text">
+              <span>{{ crawl.progress }}%</span>
+              <span v-if="crawl.current_match_name">当前: <span class="match-name">{{ crawl.current_match_name }}</span></span>
+            </div>
           </div>
         </div>
-        <div class="crawl-bar">
-          <div class="fill" :style="{width: crawl.progress+'%'}"></div>
-        </div>
-        <div class="crawl-bar-text">
-          <span>{{ crawl.progress }}%</span>
-          <span v-if="crawl.current_match_name">当前: <span class="match-name">{{ crawl.current_match_name
-              }}</span></span>
-        </div>
-        <div class="crawl-logs" ref="logsEl">
-          <div v-for="(log, idx) in crawl.logs" :key="idx">
-            <span class="log-time">{{ log.time }}</span>
-            <span
-              :class="{'log-ok': log.msg.includes('已入库'), 'log-skip': log.msg.includes('已跳过'), 'log-err': log.msg.includes('出错')}">{{
-              log.msg }}</span>
-          </div>
+
+        <div class="crawl-section-title">当前比赛</div>
+        <div class="current-match-card">
+          <div><span class="label">比赛 ID</span><span class="value">{{ crawl.current_match_id || '—' }}</span></div>
+          <div><span class="label">比赛名称</span><span class="value">{{ crawl.current_match_name || '—' }}</span></div>
         </div>
       </div>
 
@@ -769,6 +935,59 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <div v-if="logsDrawerVisible">
+      <div class="log-drawer-mask" @click="closeLogsDrawer"></div>
+      <div class="log-drawer">
+        <div class="log-drawer-header">
+          <div>
+            <div class="log-drawer-title">全部查询日志</div>
+            <div class="log-drawer-meta">从数据库中查看所有批次的日志，支持按批次和时间筛选</div>
+          </div>
+          <button class="btn btn-sm btn-primary" @click="closeLogsDrawer">关闭</button>
+        </div>
+        <div class="log-drawer-body">
+          <div class="crawl-stats" style="margin-bottom:12px">
+            <div class="crawl-stat" style="min-width:210px;flex:1">
+              批次
+              <select v-model="selectedLogBatchId" @change="loadAllLogs" style="width:100%;margin-top:6px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px">
+                <option value="">全部批次</option>
+                <option v-for="b in logBatches" :key="b.batch_id" :value="b.batch_id">
+                  {{ b.batch_id }}（{{ b.log_count }}）
+                </option>
+              </select>
+            </div>
+            <div class="crawl-stat" style="min-width:210px;flex:1">
+              开始时间
+              <input type="date" v-model="selectedLogDateFrom" @change="loadAllLogs" style="width:100%;margin-top:6px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px" />
+            </div>
+            <div class="crawl-stat" style="min-width:210px;flex:1">
+              结束时间
+              <input type="date" v-model="selectedLogDateTo" @change="loadAllLogs" style="width:100%;margin-top:6px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px" />
+            </div>
+          </div>
+          <div class="log-header">
+            <div class="crawl-section-title" style="margin:0">日志类型</div>
+            <div class="log-toolbar">
+              <button class="btn btn-ghost btn-sm" @click="logFilters.type='all';loadAllLogs()">全部</button>
+              <button class="btn btn-ghost btn-sm" @click="logFilters.type='batch';loadAllLogs()">批次</button>
+              <button class="btn btn-ghost btn-sm" @click="logFilters.type='day';loadAllLogs()">日期</button>
+              <button class="btn btn-ghost btn-sm" @click="logFilters.type='match';loadAllLogs()">比赛</button>
+            </div>
+          </div>
+          <div v-if="logsLoading" style="color:var(--text-dim);font-size:.85rem;padding:8px 2px">正在加载日志...</div>
+          <div class="crawl-logs" ref="logsEl" style="max-height:none;padding-right:2px">
+            <div v-if="!filteredLogs.length && !logsLoading" style="color:var(--text-dim);font-size:.85rem;padding:8px 2px">暂无日志</div>
+            <div v-for="(log, idx) in filteredLogs" :key="idx" class="log-line">
+              <span class="log-time">{{ log.time }}</span>
+              <span class="log-tag">[{{ log.type }}]</span>
+              <span style="color:var(--text-dim);font-size:.75rem">{{ log.batch_id || '—' }}</span>
+              <span :class="{'log-ok': log.level === 'info' && (log.msg.includes('已入库') || log.msg.includes('完成')), 'log-skip': log.level === 'warning' || log.msg.includes('已跳过'), 'log-err': log.level === 'error' || log.msg.includes('出错')}">{{ log.msg }}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -827,16 +1046,21 @@
         const activeMatch = reactive({})
         const iframeLoaded = ref(false)
         const logsEl = ref(null)
+        const logsDrawerVisible = ref(false)
+        const allLogs = ref([])
+        const logBatches = ref([])
+        const logsLoading = ref(false)
+        const logFilters = reactive({ batch_id: '', type: 'all', date_from: '', date_to: '' })
 
         const now = new Date()
         const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0')
         const yesterday = new Date(now.getTime() - 86400000)
         const yesterdayStr = yesterday.getFullYear() + '-' + String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + String(yesterday.getDate()).padStart(2, '0')
-        const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000)
-        const dateMin = sevenDaysAgo.getFullYear() + '-' + String(sevenDaysAgo.getMonth() + 1).padStart(2, '0') + '-' + String(sevenDaysAgo.getDate()).padStart(2, '0')
+        const dateMin = '1900-01-01'
         const dateMax = yesterdayStr
 
-        const crawlDate = ref(yesterdayStr)
+        const crawlStartDate = ref(yesterdayStr)
+        const crawlEndDate = ref(yesterdayStr)
         const crawlDateMin = dateMin
         const crawlDateMax = dateMax
 
@@ -845,12 +1069,17 @@
         const crawl = reactive({
           running: false, progress: 0, total: 0, current: 0,
           current_match_id: '', current_match_name: '',
-          qualified: 0, skipped: 0, finished: false, error: null, logs: [],
-          crawl_date: null,
+          qualified: 0, skipped: 0, failed: 0, finished: false, error: null, logs: [], recent_logs: [],
+          crawl_date: null, batch_id: null, start_date: null, end_date: null,
+          day_index: 0, day_total: 0, batch_summary: { total_days: 0, finished_days: 0, success_days: 0, failed_days: 0, total_matches: 0, qualified_matches: 0, skipped_matches: 0, failed_matches: 0 },
         })
 
         let crawlPollTimer = null
         let dataRefreshTimer = null
+        const logFilter = ref('all')
+        const selectedLogBatchId = ref('')
+        const selectedLogDateFrom = ref('')
+        const selectedLogDateTo = ref('')
 
         function simulateProgress() {
           progress.value = 0
@@ -909,29 +1138,94 @@
         function onQueryDateChange() {
         }
 
+        async function loadAllLogs() {
+          logsLoading.value = true
+          try {
+            const qs = new URLSearchParams()
+            if (selectedLogBatchId.value) qs.set('batch_id', selectedLogBatchId.value)
+            if (logFilters.type && logFilters.type !== 'all') qs.set('type', logFilters.type)
+            if (selectedLogDateFrom.value) qs.set('date_from', selectedLogDateFrom.value)
+            if (selectedLogDateTo.value) qs.set('date_to', selectedLogDateTo.value)
+            const resp = await fetch('/api/logs' + (qs.toString() ? '?' + qs.toString() : ''))
+            const data = await resp.json()
+            allLogs.value = data.logs || []
+          } finally {
+            logsLoading.value = false
+            refreshLogPanel()
+          }
+        }
+
+        async function loadLogBatches() {
+          const resp = await fetch('/api/logs/batches')
+          const data = await resp.json()
+          logBatches.value = data.batches || []
+        }
+
+        async function openLogsDrawer() {
+          logsDrawerVisible.value = true
+          await Promise.all([loadLogBatches(), loadAllLogs()])
+          nextTick(() => {
+            if (logsEl.value) logsEl.value.scrollTop = logsEl.value.scrollHeight
+          })
+        }
+
+        function closeLogsDrawer() {
+          logsDrawerVisible.value = false
+        }
+
         function formatDisplayDate(dateStr) {
           if (!dateStr || dateStr.length !== 8) return dateStr || ''
           return dateStr.substring(0, 4) + '-' + dateStr.substring(4, 6) + '-' + dateStr.substring(6, 8)
         }
 
         const panelTitle = computed(() => {
-          if (crawl.finished) return '✅ 爬取完成'
           if (crawl.error) return '❌ 爬取出错'
-          if (!crawl.running && crawl.crawl_date && !crawl.finished && !crawl.error) return '⏸ 爬取已暂停'
-          return '🔄 正在爬取...'
+          if (crawl.running) return '🔄 正在爬取...'
+          if (crawl.finished) return '✅ 爬取完成'
+          if (crawl.batch_summary.total_days > 0 && crawl.batch_summary.finished_days < crawl.batch_summary.total_days) return '⏸ 批次已暂停'
+          return '⏸ 爬取已暂停'
         })
 
         const isStoppedState = computed(() => {
-          return !crawl.running && crawl.crawl_date && !crawl.finished && !crawl.error && (crawl.qualified > 0 || crawl.skipped > 0 || crawl.total > 0)
+          return !crawl.running && !crawl.finished && !crawl.error && (crawl.batch_summary.total_days > 0 || crawl.day_index > 0 || crawl.current > 0)
         })
 
         const showCrawlPanel = computed(() => {
-          return crawl.running || crawl.finished || crawl.error || isStoppedState.value
+          return crawl.running || crawl.finished || crawl.error || isStoppedState.value || crawl.batch_summary.total_days > 0
         })
 
         const currentQueryLabel = computed(() => {
           return formatDisplayDate(queryDate.value.replace(/-/g, ''))
         })
+
+        const batchProgress = computed(() => {
+          const total = crawl.batch_summary.total_days || crawl.day_total || 0
+          const finished = crawl.batch_summary.finished_days || 0
+          if (!total) return 0
+          return Math.min(100, Math.round(finished / total * 100))
+        })
+
+        const displayedLogs = computed(() => allLogs.value)
+
+        const filteredLogs = computed(() => {
+          return displayedLogs.value.filter(log => {
+            if (logFilters.batch_id && log.batch_id !== logFilters.batch_id) return false
+            if (logFilters.type !== 'all' && log.type !== logFilters.type) return false
+            if (logFilters.date_from && log.time.slice(0, 10) < logFilters.date_from) return false
+            if (logFilters.date_to && log.time.slice(0, 10) > logFilters.date_to) return false
+            return true
+          })
+        })
+
+        function refreshLogPanel() {
+          nextTick(() => {
+            if (logsEl.value) logsEl.value.scrollTop = logsEl.value.scrollHeight
+          })
+        }
+
+        async function refreshLogs() {
+          await loadAllLogs()
+        }
 
         function startDataRefresh() {
           stopDataRefresh()
@@ -953,20 +1247,24 @@
         }
 
         async function startCrawl() {
-          const dateStr = crawlDate.value.replace(/-/g, '')
-          const listUrl = 'https://bf.titan007.com/football/Over_' + dateStr + '.htm'
+          const startDate = crawlStartDate.value.replace(/-/g, '')
+          const endDate = crawlEndDate.value.replace(/-/g, '')
+          if (!startDate || !endDate) {
+            alert('请选择开始日期和结束日期')
+            return
+          }
           try {
             const resp = await fetch('/api/crawl/start', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ list_url: listUrl, crawl_date: dateStr })
+              body: JSON.stringify({ start_date: startDate, end_date: endDate })
             })
             if (resp.status === 409) {
               alert('爬取正在进行中，请等待完成')
               return
             }
             const result = await resp.json()
-            Object.assign(crawl, { running: true, progress: 0, total: 0, current: 0, current_match_id: '', current_match_name: '', qualified: 0, skipped: 0, finished: false, error: null, logs: [], crawl_date: result.crawl_date })
+            Object.assign(crawl, { running: true, progress: 0, total: 0, current: 0, current_match_id: '', current_match_name: '', qualified: 0, skipped: 0, failed: 0, finished: false, error: null, logs: [], recent_logs: [], crawl_date: result.start_date, batch_id: null, start_date: result.start_date, end_date: result.end_date, day_index: 0, day_total: 0, batch_summary: { total_days: 0, finished_days: 0, success_days: 0, failed_days: 0, total_matches: 0, qualified_matches: 0, skipped_matches: 0, failed_matches: 0 } })
             startCrawlPoll()
             startDataRefresh()
           } catch (e) {
@@ -981,18 +1279,19 @@
         }
 
         async function resumeCrawl() {
-          const dateStr = crawl.crawl_date
+          const startDate = crawl.start_date || crawl.crawl_date
+          const endDate = crawl.end_date || crawl.crawl_date
           try {
             const resp = await fetch('/api/crawl/resume', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ crawl_date: dateStr })
+              body: JSON.stringify({ start_date: startDate, end_date: endDate })
             })
             if (resp.status === 409) {
               alert('爬取正在进行中')
               return
             }
-            Object.assign(crawl, { running: true, progress: 0, total: 0, current: 0, current_match_id: '', current_match_name: '', qualified: 0, skipped: 0, finished: false, error: null, logs: [], crawl_date: dateStr })
+            Object.assign(crawl, { running: true, progress: 0, total: 0, current: 0, current_match_id: '', current_match_name: '', qualified: 0, skipped: 0, failed: 0, finished: false, error: null, logs: [], recent_logs: [], crawl_date: startDate, batch_id: null, start_date: startDate, end_date: endDate, day_index: 0, day_total: 0 })
             startCrawlPoll()
             startDataRefresh()
           } catch (e) { console.error(e) }
@@ -1002,7 +1301,7 @@
           try {
             await fetch('/api/crawl/close', { method: 'POST' })
           } catch (e) { console.error(e) }
-          Object.assign(crawl, { running: false, progress: 0, total: 0, current: 0, current_match_id: '', current_match_name: '', qualified: 0, skipped: 0, finished: false, error: null, logs: [], crawl_date: null })
+          Object.assign(crawl, { running: false, progress: 0, total: 0, current: 0, current_match_id: '', current_match_name: '', qualified: 0, skipped: 0, failed: 0, finished: false, error: null, logs: [], recent_logs: [], crawl_date: null, batch_id: null, start_date: null, end_date: null, day_index: 0, day_total: 0, batch_summary: { total_days: 0, finished_days: 0, success_days: 0, failed_days: 0, total_matches: 0, qualified_matches: 0, skipped_matches: 0, failed_matches: 0 } })
           stopCrawlPoll()
           stopDataRefresh()
           loadByDate()
@@ -1019,8 +1318,14 @@
               const resp = await fetch('/api/crawl/status')
               const data = await resp.json()
               Object.assign(crawl, data)
-              await nextTick()
-              if (logsEl.value) logsEl.value.scrollTop = logsEl.value.scrollHeight
+              if (!crawl.recent_logs || !crawl.recent_logs.length) {
+                crawl.recent_logs = data.recent_logs || []
+              }
+              if (logsDrawerVisible.value) {
+                refreshLogs()
+              } else {
+                refreshLogPanel()
+              }
               if ((data.finished || data.error) && !data.running) {
                 stopCrawlPoll()
                 stopDataRefresh()
@@ -1078,16 +1383,21 @@
 
         return {
           searchId, matches, total, loading, searched, progress, popupVisible, activeMatch,
-          iframeLoaded, logsEl, crawlDate, crawlDateMin, crawlDateMax,
+          iframeLoaded, logsEl, crawlStartDate, crawlEndDate, crawlDateMin, crawlDateMax,
           queryDate, dateMin, dateMax, crawl,
-          searchById, loadAll, loadByDate, onQueryDateChange,
+          searchById, loadByDate, onQueryDateChange,
           startCrawl, stopCrawl, resumeCrawl, closeCrawl, dismissCrawl,
+          openLogsDrawer, closeLogsDrawer, logsDrawerVisible,
+          loadAllLogs, loadLogBatches, refreshLogs,
+          selectedLogBatchId, selectedLogDateFrom, selectedLogDateTo, logBatches, logsLoading, logFilters,
+          filteredLogs, logFilter,
           openPopup, closePopup, proxyUrl, formatSummary,
           panelTitle, isStoppedState, showCrawlPanel, currentQueryLabel, formatDisplayDate,
         }
       }
     }).mount('#app')
   </script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   {% endraw %}
 </body>
 

@@ -4,7 +4,7 @@ import argparse
 import asyncio
 
 from db_manager import DatabaseManager
-from titan_scraper import TitanScraper
+from scraper.titan_scraper import TitanScraper
 
 
 def build_parser() -> argparse.ArgumentParser:

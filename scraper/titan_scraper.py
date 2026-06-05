@@ -15,6 +15,7 @@ from db_manager import DatabaseManager
 
 LIST_URL = "https://bf.titan007.com/football/Over_20260602.htm"
 DETAIL_URL = "https://zq.titan007.com/analysis/{match_id}cn.htm"
+ALLOWED_LEAGUES = {"英超", "意甲", "德甲", "西甲", "法甲"}
 DEFAULT_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/126.0.0.0 Safari/537.36"
@@ -107,6 +108,9 @@ class TitanScraper:
                 }
             )
         return rows
+
+    def filter_allowed_leagues(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [row for row in rows if (row.get("league_name") or "").strip() in ALLOWED_LEAGUES]
 
     async def fetch_detail_page(self, match_id: str) -> dict[str, Any]:
         page = await self._new_page()
