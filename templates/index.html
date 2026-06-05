@@ -758,6 +758,131 @@
       font-size: .85rem
     }
 
+    /* 父子列表展开样式 */
+    .expand-icon {
+      display: inline-block;
+      transition: transform .25s ease;
+      font-size: .75rem;
+      color: var(--accent)
+    }
+
+    .expand-icon.expanded {
+      transform: rotate(90deg)
+    }
+
+    .parent-row {
+      cursor: default
+    }
+
+    .parent-row.expanded {
+      background: rgba(0, 230, 118, .04)
+    }
+
+    .child-row {
+      background: rgba(17, 29, 53, .6);
+      animation: slideDown .3s ease-out
+    }
+
+    .child-row td {
+      padding: 0 !important;
+      border-bottom: none
+    }
+
+    /* 赔率数据展示样式 */
+    .odds-container {
+      padding: 16px 20px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap
+    }
+
+    .odds-section {
+      flex: 1;
+      min-width: 320px;
+      max-width: 500px
+    }
+
+    .odds-title {
+      font-size: .85rem;
+      color: var(--gold);
+      margin-bottom: 12px;
+      font-weight: 600
+    }
+
+    .odds-grid {
+      display: flex;
+      align-items: center;
+      gap: 12px
+    }
+
+    .odds-card {
+      flex: 1;
+      background: rgba(0, 0, 0, .25);
+      border: 1px solid rgba(30, 48, 80, .8);
+      border-radius: 8px;
+      padding: 12px
+    }
+
+    .odds-card-header {
+      text-align: center;
+      font-size: .78rem;
+      color: var(--text-dim);
+      margin-bottom: 10px;
+      font-weight: 600
+    }
+
+    .init-odds,
+    .init-ou {
+      border-left: 3px solid var(--draw)
+    }
+
+    .final-odds,
+    .final-ou {
+      border-left: 3px solid var(--accent)
+    }
+
+    .odds-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: .82rem
+    }
+
+    .odds-item.highlight {
+      background: rgba(255, 214, 0, .06);
+      margin: 4px -8px;
+      padding: 8px;
+      border-radius: 4px;
+      font-weight: 700
+    }
+
+    .odds-item .label {
+      color: var(--text-dim);
+      font-size: .76rem
+    }
+
+    .odds-item .value {
+      color: var(--text);
+      font-weight: 600;
+      font-family: 'Consolas', monospace
+    }
+
+    .odds-arrow {
+      font-size: 1.5rem;
+      color: var(--gold);
+      font-weight: bold;
+      min-width: 30px;
+      text-align: center
+    }
+
+    .no-odds-data {
+      width: 100%;
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-dim);
+      font-size: .85rem
+    }
+
     @media(max-width:768px) {
       .toolbar input[type=text] {
         width: 100%
@@ -836,8 +961,10 @@
 
         <div class="crawl-section-title">批次概览</div>
         <div class="crawl-stats">
-          <div class="crawl-stat">起止日期 <span>{{ formatDisplayDate(crawl.start_date) }} ~ {{ formatDisplayDate(crawl.end_date) }}</span></div>
-          <div class="crawl-stat">批次进度 <span>{{ crawl.batch_summary.finished_days }}/{{ crawl.batch_summary.total_days }}</span> 天</div>
+          <div class="crawl-stat">起止日期 <span>{{ formatDisplayDate(crawl.start_date) }} ~ {{
+              formatDisplayDate(crawl.end_date) }}</span></div>
+          <div class="crawl-stat">批次进度 <span>{{ crawl.batch_summary.finished_days }}/{{ crawl.batch_summary.total_days
+              }}</span> 天</div>
           <div class="crawl-stat">成功天数 <span>{{ crawl.batch_summary.success_days }}</span></div>
           <div class="crawl-stat">失败天数 <span>{{ crawl.batch_summary.failed_days }}</span></div>
           <div class="crawl-stat">总入库 <span>{{ crawl.batch_summary.qualified_matches }}</span></div>
@@ -874,7 +1001,8 @@
             </div>
             <div class="crawl-bar-text">
               <span>{{ crawl.progress }}%</span>
-              <span v-if="crawl.current_match_name">当前: <span class="match-name">{{ crawl.current_match_name }}</span></span>
+              <span v-if="crawl.current_match_name">当前: <span class="match-name">{{ crawl.current_match_name
+                  }}</span></span>
             </div>
           </div>
         </div>
@@ -904,6 +1032,7 @@
         <table>
           <thead>
             <tr>
+              <th style="width:40px"></th>
               <th>ID</th>
               <th>联赛</th>
               <th>时间</th>
@@ -916,23 +1045,92 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="m in matches" :key="m.match_id">
-              <td><span class="id-tag">{{ m.match_id }}</span></td>
-              <td><span class="league-tag" v-if="m.league_name">{{ m.league_name }}</span><span v-else
-                  style="color:var(--text-dim)">—</span></td>
-              <td style="font-size:.8rem;color:var(--text-dim)">{{ m.match_time || '—' }}</td>
-              <td><span class="team-cell" :title="m.home_team">{{ m.home_team || '—' }}</span></td>
-              <td class="score-cell">{{ m.home_score != null ? m.home_score : '-' }} : {{ m.away_score != null ?
-                m.away_score : '-' }}</td>
-              <td><span class="team-cell" :title="m.away_team">{{ m.away_team || '—' }}</span></td>
-              <td><span class="recent-text" v-if="m.home_recent_summary"
-                  v-html="formatSummary(m.home_recent_summary)"></span><span v-else
-                  style="color:var(--text-dim)">—</span></td>
-              <td><span class="recent-text" v-if="m.away_recent_summary"
-                  v-html="formatSummary(m.away_recent_summary)"></span><span v-else
-                  style="color:var(--text-dim)">—</span></td>
-              <td><button class="btn-ghost" @click="openPopup($event, m)">详情</button></td>
-            </tr>
+            <template v-for="m in matches" :key="m.match_id">
+              <tr :class="{ 'parent-row': true, 'expanded': isExpanded(m.match_id) }">
+                <td style="text-align:center;cursor:pointer" @click="toggleExpand(m.match_id)">
+                  <span class="expand-icon" :class="{ 'expanded': isExpanded(m.match_id) }">▶</span>
+                </td>
+                <td><span class="id-tag">{{ m.match_id }}</span></td>
+                <td><span class="league-tag" v-if="m.league_name">{{ m.league_name }}</span><span v-else
+                    style="color:var(--text-dim)">—</span></td>
+                <td style="font-size:.8rem;color:var(--text-dim)">{{ m.match_time || '—' }}</td>
+                <td><span class="team-cell" :title="m.home_team">{{ m.home_team || '—' }}</span></td>
+                <td class="score-cell">{{ m.home_score != null ? m.home_score : '-' }} : {{ m.away_score != null ?
+                  m.away_score : '-' }}</td>
+                <td><span class="team-cell" :title="m.away_team">{{ m.away_team || '—' }}</span></td>
+                <td><span class="recent-text" v-if="m.home_recent_summary"
+                    v-html="formatSummary(m.home_recent_summary)"></span><span v-else
+                    style="color:var(--text-dim)">—</span></td>
+                <td><span class="recent-text" v-if="m.away_recent_summary"
+                    v-html="formatSummary(m.away_recent_summary)"></span><span v-else
+                    style="color:var(--text-dim)">—</span></td>
+                <td><button class="btn-ghost" @click.stop="openPopup($event, m)">详情</button></td>
+              </tr>
+              <tr v-if="isExpanded(m.match_id)" class="child-row">
+                <td colspan="10">
+                  <div class="odds-container" v-if="getOddsData(m.match_id)">
+                    <div class="odds-section" v-if="getOddsData(m.match_id).asian">
+                      <h4 class="odds-title">📊 亚让盘口 ({{ getOddsData(m.match_id).asian.company_name }})</h4>
+                      <div class="odds-grid">
+                        <div class="odds-card init-odds">
+                          <div class="odds-card-header">初盘</div>
+                          <div class="odds-item"><span class="label">主队</span><span class="value">{{
+                              getOddsData(m.match_id).asian.init_home_odds || '-' }}</span></div>
+                          <div class="odds-item highlight"><span class="label">盘口</span><span class="value">{{
+                              getOddsData(m.match_id).asian.init_handicap || '-' }}</span></div>
+                          <div class="odds-item"><span class="label">客队</span><span class="value">{{
+                              getOddsData(m.match_id).asian.init_away_odds || '-' }}</span></div>
+                        </div>
+                        <div class="odds-arrow">→</div>
+                        <div class="odds-card final-odds">
+                          <div class="odds-card-header">终盘</div>
+                          <div class="odds-item"><span class="label">主队</span><span class="value">{{
+                              getOddsData(m.match_id).asian.final_home_odds || '-' }}</span></div>
+                          <div class="odds-item highlight"><span class="label">盘口</span><span class="value">{{
+                              getOddsData(m.match_id).asian.final_handicap || '-' }}</span></div>
+                          <div class="odds-item"><span class="label">客队</span><span class="value">{{
+                              getOddsData(m.match_id).asian.final_away_odds || '-' }}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="odds-section" v-if="getOddsData(m.match_id).over_under">
+                      <h4 class="odds-title">⚽ 进球数 ({{ getOddsData(m.match_id).over_under.company_name }})</h4>
+                      <div class="odds-grid">
+                        <div class="odds-card init-ou">
+                          <div class="odds-card-header">初盘</div>
+                          <div class="odds-item"><span class="label">大球</span><span class="value">{{
+                              getOddsData(m.match_id).over_under.init_over_odds || '-' }}</span></div>
+                          <div class="odds-item highlight"><span class="label">进球数</span><span class="value">{{
+                              getOddsData(m.match_id).over_under.init_goal_line || '-' }}</span></div>
+                          <div class="odds-item"><span class="label">小球</span><span class="value">{{
+                              getOddsData(m.match_id).over_under.init_under_odds || '-' }}</span></div>
+                        </div>
+                        <div class="odds-arrow">→</div>
+                        <div class="odds-card final-ou">
+                          <div class="odds-card-header">终盘</div>
+                          <div class="odds-item"><span class="label">大球</span><span class="value">{{
+                              getOddsData(m.match_id).over_under.final_over_odds || '-' }}</span></div>
+                          <div class="odds-item highlight"><span class="label">进球数</span><span class="value">{{
+                              getOddsData(m.match_id).over_under.final_goal_line || '-' }}</span></div>
+                          <div class="odds-item"><span class="label">小球</span><span class="value">{{
+                              getOddsData(m.match_id).over_under.final_under_odds || '-' }}</span></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-else class="no-odds-data">
+                      <span v-if="isLoadingOdds(m.match_id)">⏳ 正在加载赔率数据...</span>
+                      <span v-else>ℹ️ 暂无 36* 公司赔率数据</span>
+                    </div>
+                  </div>
+                  <div class="odds-container" v-else>
+                    <div class="no-odds-data">
+                      <span v-if="isLoadingOdds(m.match_id)">⏳ 正在加载赔率数据...</span>
+                      <span v-else>ℹ️ 暂无 36* 公司赔率数据</span>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -952,7 +1150,8 @@
           <div class="crawl-stats" style="margin-bottom:12px">
             <div class="crawl-stat" style="min-width:210px;flex:1">
               批次
-              <select v-model="selectedLogBatchId" @change="loadAllLogs" style="width:100%;margin-top:6px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px">
+              <select v-model="selectedLogBatchId" @change="loadAllLogs"
+                style="width:100%;margin-top:6px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px">
                 <option value="">全部批次</option>
                 <option v-for="b in logBatches" :key="b.batch_id" :value="b.batch_id">
                   {{ b.batch_id }}（{{ b.log_count }}）
@@ -961,11 +1160,13 @@
             </div>
             <div class="crawl-stat" style="min-width:210px;flex:1">
               开始时间
-              <input type="date" v-model="selectedLogDateFrom" @change="loadAllLogs" style="width:100%;margin-top:6px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px" />
+              <input type="date" v-model="selectedLogDateFrom" @change="loadAllLogs"
+                style="width:100%;margin-top:6px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px" />
             </div>
             <div class="crawl-stat" style="min-width:210px;flex:1">
               结束时间
-              <input type="date" v-model="selectedLogDateTo" @change="loadAllLogs" style="width:100%;margin-top:6px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px" />
+              <input type="date" v-model="selectedLogDateTo" @change="loadAllLogs"
+                style="width:100%;margin-top:6px;background:transparent;color:var(--text);border:1px solid var(--border);padding:8px;border-radius:6px" />
             </div>
           </div>
           <div class="log-header">
@@ -979,12 +1180,15 @@
           </div>
           <div v-if="logsLoading" style="color:var(--text-dim);font-size:.85rem;padding:8px 2px">正在加载日志...</div>
           <div class="crawl-logs" ref="logsEl" style="max-height:none;padding-right:2px">
-            <div v-if="!filteredLogs.length && !logsLoading" style="color:var(--text-dim);font-size:.85rem;padding:8px 2px">暂无日志</div>
+            <div v-if="!filteredLogs.length && !logsLoading"
+              style="color:var(--text-dim);font-size:.85rem;padding:8px 2px">暂无日志</div>
             <div v-for="(log, idx) in filteredLogs" :key="idx" class="log-line">
               <span class="log-time">{{ log.time }}</span>
               <span class="log-tag">[{{ log.type }}]</span>
               <span style="color:var(--text-dim);font-size:.75rem">{{ log.batch_id || '—' }}</span>
-              <span :class="{'log-ok': log.level === 'info' && (log.msg.includes('已入库') || log.msg.includes('完成')), 'log-skip': log.level === 'warning' || log.msg.includes('已跳过'), 'log-err': log.level === 'error' || log.msg.includes('出错')}">{{ log.msg }}</span>
+              <span
+                :class="{'log-ok': log.level === 'info' && (log.msg.includes('已入库') || log.msg.includes('完成')), 'log-skip': log.level === 'warning' || log.msg.includes('已跳过'), 'log-err': log.level === 'error' || log.msg.includes('出错')}">{{
+                log.msg }}</span>
             </div>
           </div>
         </div>
@@ -1381,6 +1585,59 @@
             .replace(/负(\d+)/g, '<span class="l">负$1</span>')
         }
 
+        // 父子列表展开状态
+        const expandedRows = ref({})
+        // 赔率数据缓存
+        const oddsData = ref({})
+        // 赔率数据加载状态
+        const loadingOdds = ref({})
+
+        // 父子列表展开/收起功能
+        async function toggleExpand(matchId) {
+          if (expandedRows.value[matchId]) {
+            delete expandedRows.value[matchId]
+          } else {
+            expandedRows.value[matchId] = true
+            if (!oddsData.value[matchId] && !loadingOdds.value[matchId]) {
+              await loadOddsData(matchId)
+            }
+          }
+        }
+
+        // 辅助方法：检查是否展开
+        function isExpanded(matchId) {
+          return !!expandedRows.value[matchId]
+        }
+
+        // 辅助方法：获取赔率数据
+        function getOddsData(matchId) {
+          return oddsData.value[matchId]
+        }
+
+        // 辅助方法：检查是否正在加载赔率
+        function isLoadingOdds(matchId) {
+          return !!loadingOdds.value[matchId]
+        }
+
+        // 加载单场比赛的赔率数据
+        async function loadOddsData(matchId) {
+          loadingOdds.value[matchId] = true
+          try {
+            const resp = await fetch('/api/odds/' + matchId)
+            const data = await resp.json()
+            if (data.asian || data.over_under) {
+              oddsData.value[matchId] = data
+            } else {
+              oddsData.value[matchId] = null
+            }
+          } catch (e) {
+            console.error('加载赔率数据失败:', e)
+            oddsData.value[matchId] = null
+          } finally {
+            loadingOdds.value[matchId] = false
+          }
+        }
+
         return {
           searchId, matches, total, loading, searched, progress, popupVisible, activeMatch,
           iframeLoaded, logsEl, crawlStartDate, crawlEndDate, crawlDateMin, crawlDateMax,
@@ -1393,11 +1650,11 @@
           filteredLogs, logFilter,
           openPopup, closePopup, proxyUrl, formatSummary,
           panelTitle, isStoppedState, showCrawlPanel, currentQueryLabel, formatDisplayDate,
+          expandedRows, oddsData, loadingOdds, toggleExpand, isExpanded, getOddsData, isLoadingOdds,
         }
       }
     }).mount('#app')
   </script>
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
   {% endraw %}
 </body>
 

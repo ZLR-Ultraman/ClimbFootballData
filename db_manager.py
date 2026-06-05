@@ -107,6 +107,48 @@ class DatabaseManager:
                     state_value TEXT,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
+
+                CREATE TABLE IF NOT EXISTS asian_odds (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    match_id TEXT NOT NULL,
+                    company_id INTEGER NOT NULL DEFAULT 8,
+                    company_name TEXT NOT NULL DEFAULT '36*',
+                    init_home_odds REAL,
+                    init_handicap TEXT,
+                    init_away_odds REAL,
+                    final_home_odds REAL,
+                    final_handicap TEXT,
+                    final_away_odds REAL,
+                    crawl_date TEXT,
+                    crawl_time TEXT,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(match_id, company_id),
+                    FOREIGN KEY (match_id) REFERENCES matches(match_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_asian_odds_match_id ON asian_odds(match_id);
+                CREATE INDEX IF NOT EXISTS idx_asian_odds_crawl_date ON asian_odds(crawl_date);
+
+                CREATE TABLE IF NOT EXISTS over_under_odds (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    match_id TEXT NOT NULL,
+                    company_id INTEGER NOT NULL DEFAULT 8,
+                    company_name TEXT NOT NULL DEFAULT '36*',
+                    init_over_odds REAL,
+                    init_goal_line TEXT,
+                    init_under_odds REAL,
+                    final_over_odds REAL,
+                    final_goal_line TEXT,
+                    final_under_odds REAL,
+                    crawl_date TEXT,
+                    crawl_time TEXT,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(match_id, company_id),
+                    FOREIGN KEY (match_id) REFERENCES matches(match_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_over_under_match_id ON over_under_odds(match_id);
+                CREATE INDEX IF NOT EXISTS idx_over_under_crawl_date ON over_under_odds(crawl_date);
                 """
             )
             try:
@@ -335,3 +377,91 @@ class DatabaseManager:
                 "SELECT DISTINCT crawl_date FROM matches WHERE crawl_date IS NOT NULL ORDER BY crawl_date DESC"
             ).fetchall()
             return [r[0] for r in rows if r[0]]
+
+    def upsert_asian_odds(self, match_id: str, company_id: int = 8, company_name: str = "36*",
+                          init_home_odds: float = None, init_handicap: str = None,
+                          init_away_odds: float = None, final_home_odds: float = None,
+                          final_handicap: str = None, final_away_odds: float = None,
+                          crawl_date: str = None, crawl_time: str = None) -> bool:
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO asian_odds (match_id, company_id, company_name,
+                                           init_home_odds, init_handicap, init_away_odds,
+                                           final_home_odds, final_handicap, final_away_odds,
+                                           crawl_date, crawl_time, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(match_id, company_id) DO UPDATE SET
+                        company_name=excluded.company_name,
+                        init_home_odds=excluded.init_home_odds,
+                        init_handicap=excluded.init_handicap,
+                        init_away_odds=excluded.init_away_odds,
+                        final_home_odds=excluded.final_home_odds,
+                        final_handicap=excluded.final_handicap,
+                        final_away_odds=excluded.final_away_odds,
+                        crawl_date=COALESCE(excluded.crawl_date, asian_odds.crawl_date),
+                        crawl_time=excluded.crawl_time,
+                        updated_at=CURRENT_TIMESTAMP
+                    """,
+                    (match_id, company_id, company_name,
+                     init_home_odds, init_handicap, init_away_odds,
+                     final_home_odds, final_handicap, final_away_odds,
+                     crawl_date, crawl_time),
+                )
+            return True
+        except Exception as e:
+            print(f"亚让赔率写入失败 [{match_id}]: {e}")
+            return False
+
+    def upsert_over_under_odds(self, match_id: str, company_id: int = 8, company_name: str = "36*",
+                               init_over_odds: float = None, init_goal_line: str = None,
+                               init_under_odds: float = None, final_over_odds: float = None,
+                               final_goal_line: str = None, final_under_odds: float = None,
+                               crawl_date: str = None, crawl_time: str = None) -> bool:
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO over_under_odds (match_id, company_id, company_name,
+                                                init_over_odds, init_goal_line, init_under_odds,
+                                                final_over_odds, final_goal_line, final_under_odds,
+                                                crawl_date, crawl_time, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(match_id, company_id) DO UPDATE SET
+                        company_name=excluded.company_name,
+                        init_over_odds=excluded.init_over_odds,
+                        init_goal_line=excluded.init_goal_line,
+                        init_under_odds=excluded.init_under_odds,
+                        final_over_odds=excluded.final_over_odds,
+                        final_goal_line=excluded.final_goal_line,
+                        final_under_odds=excluded.final_under_odds,
+                        crawl_date=COALESCE(excluded.crawl_date, over_under_odds.crawl_date),
+                        crawl_time=excluded.crawl_time,
+                        updated_at=CURRENT_TIMESTAMP
+                    """,
+                    (match_id, company_id, company_name,
+                     init_over_odds, init_goal_line, init_under_odds,
+                     final_over_odds, final_goal_line, final_under_odds,
+                     crawl_date, crawl_time),
+                )
+            return True
+        except Exception as e:
+            print(f"进球数赔率写入失败 [{match_id}]: {e}")
+            return False
+
+    def get_match_odds(self, match_id: str) -> dict[str, Any]:
+        result = {"asian": None, "over_under": None}
+        with self._connect() as conn:
+            asian_row = conn.execute(
+                "SELECT * FROM asian_odds WHERE match_id=?", (match_id,)
+            ).fetchone()
+            if asian_row:
+                result["asian"] = dict(asian_row)
+
+            ou_row = conn.execute(
+                "SELECT * FROM over_under_odds WHERE match_id=?", (match_id,)
+            ).fetchone()
+            if ou_row:
+                result["over_under"] = dict(ou_row)
+        return result

@@ -9,17 +9,23 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 
 from db_manager import DatabaseManager
 
 LIST_URL = "https://bf.titan007.com/football/Over_20260602.htm"
 DETAIL_URL = "https://zq.titan007.com/analysis/{match_id}cn.htm"
+ASIAN_ODDS_URL = "https://vip.titan007.com/AsianOdds_n.aspx?id={match_id}&l=0"
+OVER_UNDER_URL = "https://vip.titan007.com/OverDown_n.aspx?id={match_id}&l=0"
 ALLOWED_LEAGUES = {"英超", "意甲", "德甲", "西甲", "法甲"}
 DEFAULT_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/126.0.0.0 Safari/537.36"
 )
+
+TARGET_COMPANY_ID = 8
+TARGET_COMPANY_NAME = "36*"
 
 
 @dataclass
@@ -116,11 +122,46 @@ class TitanScraper:
         page = await self._new_page()
         try:
             await page.goto(DETAIL_URL.format(match_id=match_id), wait_until="domcontentloaded", timeout=45000)
-            await page.wait_for_timeout(1800)
+            await page.wait_for_load_state("networkidle")
+            await page.wait_for_timeout(1200)
+
+            # 近期战绩在页面里就是两个并列区域：`hn` 对应主队，`an` 对应客队。
+            # 这两个区域各自有自己的下拉框，所以必须分别切换。
+            await self._select_recent_option(page, block_selector="#hn", option_text="36*")
+            await self._select_recent_option(page, block_selector="#an", option_text="36*")
+            await page.wait_for_timeout(1000)
+
             html = await page.content()
             return self._parse_detail_html(html)
         finally:
             await page.close()
+
+    async def _select_recent_option(self, page, block_selector: str, option_text: str) -> None:
+        block = page.locator(block_selector)
+        if await block.count() == 0:
+            return
+
+        # 一个区域里可能有多个 select，优先切换能找到 `36*` 的那个。
+        # 这里用“包含匹配”而不是完全等于，避免页面里出现 `36*`、`36 *`、`36场*` 之类的写法。
+        selects = block.locator("select")
+        total = await selects.count()
+        for idx in range(total):
+            select = selects.nth(idx)
+            try:
+                option_values = await select.locator("option").evaluate_all(
+                    "opts => opts.map(opt => ({ value: opt.value, text: (opt.textContent || '').trim() }))"
+                )
+                target = next((opt for opt in option_values if option_text in opt["text"]), None)
+                if not target:
+                    continue
+                if target["value"]:
+                    await select.select_option(value=target["value"])
+                else:
+                    await select.select_option(label=target["text"])
+                await page.wait_for_timeout(1200)
+                return
+            except Exception:
+                continue
 
     def _parse_detail_html(self, html: str) -> dict[str, Any]:
         home_team, away_team = self._extract_teams(html)
@@ -275,3 +316,146 @@ class TitanScraper:
 
     def _clean(self, s: str | None) -> str:
         return re.sub(r"\s+", " ", s or "").strip()
+
+    async def fetch_asian_odds(self, match_id: str) -> dict[str, Any] | None:
+        page = await self._new_page()
+        try:
+            url = ASIAN_ODDS_URL.format(match_id=match_id)
+            await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            await page.wait_for_timeout(1500)
+            html = await page.content()
+            return self._parse_asian_table(html)
+        except Exception as e:
+            print(f"亚让页面抓取失败 [{match_id}]: {e}")
+            return None
+        finally:
+            await page.close()
+
+    async def fetch_over_under_odds(self, match_id: str) -> dict[str, Any] | None:
+        page = await self._new_page()
+        try:
+            url = OVER_UNDER_URL.format(match_id=match_id)
+            await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            await page.wait_for_timeout(1500)
+            html = await page.content()
+            return self._parse_over_under_table(html)
+        except Exception as e:
+            print(f"进球数页面抓取失败 [{match_id}]: {e}")
+            return None
+        finally:
+            await page.close()
+
+    def _find_target_company_row(self, soup, table_id: str = "odds") -> Any:
+        table = soup.find("table", {"id": table_id})
+        if not table:
+            return None
+
+        for row in table.find_all("tr"):
+            checkbox = row.find("input", attrs={"data-id": str(TARGET_COMPANY_ID)})
+            if checkbox:
+                return row
+
+            company_cell = row.find("td")
+            if company_cell and TARGET_COMPANY_NAME in company_cell.get_text():
+                return row
+
+        return None
+
+    def _parse_asian_table(self, html: str) -> dict[str, Any] | None:
+        soup = BeautifulSoup(html, "html.parser")
+        target_row = self._find_target_company_row(soup)
+
+        if not target_row:
+            return None
+
+        tds = target_row.find_all("td")
+
+        if len(tds) < 10:
+            return None
+
+        try:
+            init_home = self._extract_numeric(tds[3].get_text())
+            init_handicap = tds[4].get_text().strip()
+            init_away = self._extract_numeric(tds[5].get_text())
+
+            final_tds = target_row.find_all("td", attrs={"oddstype": "wholeOdds"})
+            if len(final_tds) >= 3:
+                final_home = self._extract_numeric(final_tds[0].get_text())
+                final_handicap = final_tds[1].get_text().strip()
+                final_away = self._extract_numeric(final_tds[2].get_text())
+            else:
+                final_home = init_home
+                final_handicap = init_handicap
+                final_away = init_away
+
+            company_name_raw = tds[1].get_text().strip()
+            company_name = re.sub(r'<[^>]+>', '', company_name_raw).replace('*', '').strip() + '*'
+
+            return {
+                "company_id": TARGET_COMPANY_ID,
+                "company_name": company_name if company_name else TARGET_COMPANY_NAME,
+                "init_home_odds": init_home,
+                "init_handicap": init_handicap,
+                "init_away_odds": init_away,
+                "final_home_odds": final_home,
+                "final_handicap": final_handicap,
+                "final_away_odds": final_away,
+                "crawl_time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+        except Exception as e:
+            print(f"亚让数据解析失败: {e}")
+            return None
+
+    def _parse_over_under_table(self, html: str) -> dict[str, Any] | None:
+        soup = BeautifulSoup(html, "html.parser")
+        target_row = self._find_target_company_row(soup)
+
+        if not target_row:
+            return None
+
+        tds = target_row.find_all("td")
+
+        if len(tds) < 10:
+            return None
+
+        try:
+            init_over = self._extract_numeric(tds[3].get_text())
+            init_goal_line = tds[4].get_text().strip()
+            init_under = self._extract_numeric(tds[5].get_text())
+
+            final_tds = target_row.find_all("td", attrs={"oddstype": "wholeOdds"})
+            if len(final_tds) >= 3:
+                final_over = self._extract_numeric(final_tds[0].get_text())
+                final_goal_line = final_tds[1].get_text().strip()
+                final_under = self._extract_numeric(final_tds[2].get_text())
+            else:
+                final_over = init_over
+                final_goal_line = init_goal_line
+                final_under = init_under
+
+            company_name_raw = tds[1].get_text().strip()
+            company_name = re.sub(r'<[^>]+>', '', company_name_raw).replace('*', '').strip() + '*'
+
+            return {
+                "company_id": TARGET_COMPANY_ID,
+                "company_name": company_name if company_name else TARGET_COMPANY_NAME,
+                "init_over_odds": init_over,
+                "init_goal_line": init_goal_line,
+                "init_under_odds": init_under,
+                "final_over_odds": final_over,
+                "final_goal_line": final_goal_line,
+                "final_under_odds": final_under,
+                "crawl_time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+        except Exception as e:
+            print(f"进球数数据解析失败: {e}")
+            return None
+
+    def _extract_numeric(self, text: str) -> float | None:
+        cleaned = text.strip()
+        if not cleaned or cleaned == "-" or cleaned == "":
+            return None
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None

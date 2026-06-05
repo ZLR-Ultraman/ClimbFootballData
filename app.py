@@ -124,6 +124,12 @@ def api_dates():
     return jsonify({"dates": dates})
 
 
+@app.route("/api/odds/<match_id>", methods=["GET"])
+def api_match_odds(match_id):
+    odds_data = db.get_match_odds(match_id)
+    return jsonify(odds_data)
+
+
 @app.route("/api/crawl/start", methods=["POST"])
 def api_crawl_start():
     if crawl_state["running"]:

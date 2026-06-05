@@ -87,6 +87,32 @@ class CrawlerService:
                             batch_totals["qualified_matches"] += 1
                             await scraper.sync_match(match_id, detail=detail, base_row=row_with_date)
                             self.add_log(f"[{day} {i+1}/{len(matches)}] {match_id} 已入库", crawl_date=day, batch_id=batch_id, match_id=match_id)
+
+                            try:
+                                asian_odds = await scraper.fetch_asian_odds(match_id)
+                                if asian_odds:
+                                    db_local.upsert_asian_odds(
+                                        match_id=match_id,
+                                        crawl_date=day,
+                                        **asian_odds
+                                    )
+                                    self.add_log(f"[{match_id}] 亚让赔率已入库 (36*)", crawl_date=day, batch_id=batch_id, match_id=match_id)
+                                else:
+                                    self.add_log(f"[{match_id}] 未找到36*公司亚让数据，跳过", level="warning", crawl_date=day, batch_id=batch_id, match_id=match_id)
+
+                                over_under = await scraper.fetch_over_under_odds(match_id)
+                                if over_under:
+                                    db_local.upsert_over_under_odds(
+                                        match_id=match_id,
+                                        crawl_date=day,
+                                        **over_under
+                                    )
+                                    self.add_log(f"[{match_id}] 进球数赔率已入库 (36*)", crawl_date=day, batch_id=batch_id, match_id=match_id)
+                                else:
+                                    self.add_log(f"[{match_id}] 未找到36*公司进球数数据，跳过", level="warning", crawl_date=day, batch_id=batch_id, match_id=match_id)
+
+                            except Exception as odds_err:
+                                self.add_log(f"[{match_id}] 赔率抓取异常: {str(odds_err)}，仅保存基础信息", level="error", crawl_date=day, batch_id=batch_id, match_id=match_id)
                         else:
                             self.crawl_state["skipped"] += 1
                             batch_totals["skipped_matches"] += 1
