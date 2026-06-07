@@ -20,17 +20,20 @@ class CrawlerService:
         self.update_batch_summary = update_batch_summary
         self.stop_event = stop_event
 
-    def run(self, start_date: str, end_date: str) -> None:
+    def run(self, start_date: str, end_date: str, allowed_leagues: set[str] | None = None) -> None:
         """同步入口，内部运行异步爬取流程。"""
         try:
-            asyncio.run(self._crawl(start_date, end_date))
+            asyncio.run(self._crawl(start_date, end_date, allowed_leagues))
         except Exception as e:
             self.crawl_state["error"] = str(e)
             self.crawl_state["running"] = False
             self.add_log(f"批次出错: {e}", level="error", log_type="batch")
 
-    async def _crawl(self, start_date: str, end_date: str) -> None:
-        """执行批量爬取。\n\n这里保持原有逻辑，只是把实现集中到独立模块中。"""
+    async def _crawl(self, start_date: str, end_date: str, allowed_leagues: set[str] | None = None) -> None:
+        """执行批量爬取。
+
+        这里保持原有逻辑，只是把实现集中到独立模块中。
+        """
         from scraper.titan_scraper import TitanScraper
         from services.crawl_state_service import daterange
 
@@ -55,16 +58,13 @@ class CrawlerService:
                 self.crawl_state.update({"crawl_date": day, "day_index": idx, "total": 0, "current": 0, "current_match_id": "", "current_match_name": "", "qualified": 0, "skipped": 0, "failed": 0, "finished": False, "error": None, "progress": 0})
                 self.update_batch_summary(self.crawl_state, batch_totals, finished_days=idx - 1)
                 session_id = day
-                old_count = db_local.delete_matches_by_date(day)
-                if old_count:
-                    self.add_log(f"[{day}] 已清除旧数据 {old_count} 条", log_type="day", crawl_date=day, batch_id=batch_id)
                 list_url = f"https://bf.titan007.com/football/Over_{day}.htm"
-                self.add_log(f"[{day}] 正在连接列表页: {list_url}", log_type="day", crawl_date=day, batch_id=batch_id)
+                self.add_log(f"[{day}] 正在连接列表页: {list_url}（增量更新模式）", log_type="day", crawl_date=day, batch_id=batch_id)
                 day_started_at = datetime.utcnow().isoformat()
                 day_status = "running"
                 try:
                     matches = await scraper.fetch_list_page(list_url)
-                    matches = scraper.filter_allowed_leagues(matches)
+                    matches = scraper.filter_allowed_leagues(matches, allowed_leagues)
                     self.crawl_state["total"] = len(matches)
                     self.add_log(f"[{day}] 白名单后剩余 {len(matches)} 场比赛", log_type="day", crawl_date=day, batch_id=batch_id)
                     db_local.upsert_crawl_session(session_id, batch_id=batch_id, crawl_date=day, status="running", started_at=day_started_at, total=len(matches))
@@ -83,10 +83,13 @@ class CrawlerService:
                         if detail:
                             row_with_date = dict(row)
                             row_with_date["crawl_date"] = day
+                            existing_match = db_local.get_match_by_id(match_id)
+                            is_update = existing_match is not None
                             self.crawl_state["qualified"] += 1
                             batch_totals["qualified_matches"] += 1
                             await scraper.sync_match(match_id, detail=detail, base_row=row_with_date)
-                            self.add_log(f"[{day} {i+1}/{len(matches)}] {match_id} 已入库", crawl_date=day, batch_id=batch_id, match_id=match_id)
+                            action_text = "已更新 ✓" if is_update else "新增入库 +"
+                            self.add_log(f"[{day} {i+1}/{len(matches)}] {match_id} {action_text}", crawl_date=day, batch_id=batch_id, match_id=match_id)
 
                             try:
                                 asian_odds = await scraper.fetch_asian_odds(match_id)
@@ -127,7 +130,7 @@ class CrawlerService:
                         batch_totals["failed_days"] += 1
                     self.update_batch_summary(self.crawl_state, batch_totals, finished_days=idx)
                     db_local.upsert_crawl_session(session_id, batch_id=batch_id, crawl_date=day, status=day_status, total=self.crawl_state["total"], qualified=self.crawl_state["qualified"], skipped=self.crawl_state["skipped"], failed=self.crawl_state["failed"], started_at=day_started_at, finished_at=datetime.utcnow().isoformat(), error_message=self.crawl_state.get("error"))
-                    self.add_log(f"[{day}] 完成，入库 {self.crawl_state['qualified']} 条，跳过 {self.crawl_state['skipped']} 条", log_type="day", crawl_date=day, batch_id=batch_id)
+                    self.add_log(f"[{day}] ✅ 完成（增量更新），处理 {self.crawl_state['qualified']} 条，跳过 {self.crawl_state['skipped']} 条", log_type="day", crawl_date=day, batch_id=batch_id)
                 except Exception as e:
                     day_status = "failed"
                     self.crawl_state["failed"] += 1

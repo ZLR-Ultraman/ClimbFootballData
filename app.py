@@ -93,9 +93,9 @@ def _update_batch_summary(batch_totals, finished_days=None):
     update_batch_summary(crawl_state, batch_totals, finished_days=finished_days)
 
 
-def _run_crawler(start_date=None, end_date=None):
+def _run_crawler(start_date=None, end_date=None, allowed_leagues=None):
     service = CrawlerService(DB_PATH, crawl_state, _add_log, update_batch_summary, _stop_event)
-    service.run(start_date, end_date)
+    service.run(start_date, end_date, allowed_leagues)
 
 
 @app.route("/")
@@ -139,6 +139,7 @@ def api_crawl_start():
     start_date = (body.get("start_date") or "").replace("-", "").strip()
     end_date = (body.get("end_date") or "").replace("-", "").strip()
     crawl_date = (body.get("crawl_date") or "").replace("-", "").strip()
+    leagues_input = (body.get("leagues") or "").strip()
 
     if not start_date and not end_date:
         if not crawl_date:
@@ -152,14 +153,19 @@ def api_crawl_start():
     if start_date > end_date:
         start_date, end_date = end_date, start_date
 
+    allowed_leagues = None
+    if leagues_input:
+        allowed_leagues = {league.strip() for league in leagues_input.split(",") if league.strip()}
+        _add_log(f"用户自定义联赛: {allowed_leagues}", level="info", log_type="batch")
+
     _reset_crawl_state()
     _stop_event.clear()
     crawl_state.update({"running": True, "start_date": start_date, "end_date": end_date})
 
-    t = threading.Thread(target=_run_crawler, args=(start_date, end_date), daemon=True)
+    t = threading.Thread(target=_run_crawler, args=(start_date, end_date, allowed_leagues), daemon=True)
     t.start()
 
-    return jsonify({"status": "started", "start_date": start_date, "end_date": end_date})
+    return jsonify({"status": "started", "start_date": start_date, "end_date": end_date, "leagues": list(allowed_leagues) if allowed_leagues else None})
 
 
 @app.route("/api/crawl/status", methods=["GET"])
@@ -208,17 +214,22 @@ def api_crawl_resume():
     body = request.json or {}
     start_date = (body.get("start_date") or crawl_state.get("start_date") or "").replace("-", "").strip()
     end_date = (body.get("end_date") or crawl_state.get("end_date") or "").replace("-", "").strip()
+    leagues_input = (body.get("leagues") or "").strip()
     if not start_date or not end_date:
         return jsonify({"error": "缺少日期参数"}), 400
+
+    allowed_leagues = None
+    if leagues_input:
+        allowed_leagues = {league.strip() for league in leagues_input.split(",") if league.strip()}
 
     _reset_crawl_state()
     _stop_event.clear()
     crawl_state.update({"running": True, "start_date": start_date, "end_date": end_date})
 
-    t = threading.Thread(target=_run_crawler, args=(start_date, end_date), daemon=True)
+    t = threading.Thread(target=_run_crawler, args=(start_date, end_date, allowed_leagues), daemon=True)
     t.start()
 
-    return jsonify({"status": "resumed", "start_date": start_date, "end_date": end_date})
+    return jsonify({"status": "resumed", "start_date": start_date, "end_date": end_date, "leagues": list(allowed_leagues) if allowed_leagues else None})
 
 
 @app.route("/api/crawl/close", methods=["POST"])

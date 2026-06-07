@@ -940,6 +940,9 @@
           <input type="date" v-model="crawlStartDate" :min="crawlDateMin" :max="crawlDateMax" />
           <span style="font-size:.82rem;color:var(--text-dim)">结束日期</span>
           <input type="date" v-model="crawlEndDate" :min="crawlDateMin" :max="crawlDateMax" />
+          <span style="font-size:.82rem;color:var(--text-dim)">联赛名称</span>
+          <input type="text" v-model="leagueInput" placeholder="输入联赛，如：英超,意甲,德甲（留空使用默认五大联赛）"
+            style="width:320px" />
           <button class="btn btn-primary" @click="startCrawl"
             style="background:linear-gradient(135deg,#ff6d00,#ff9100);color:#fff">🚀 开始批量爬取</button>
         </template>
@@ -1265,6 +1268,7 @@
 
         const crawlStartDate = ref(yesterdayStr)
         const crawlEndDate = ref(yesterdayStr)
+        const leagueInput = ref('')
         const crawlDateMin = dateMin
         const crawlDateMax = dateMax
 
@@ -1461,7 +1465,7 @@
             const resp = await fetch('/api/crawl/start', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ start_date: startDate, end_date: endDate })
+              body: JSON.stringify({ start_date: startDate, end_date: endDate, leagues: leagueInput.value })
             })
             if (resp.status === 409) {
               alert('爬取正在进行中，请等待完成')
@@ -1489,7 +1493,7 @@
             const resp = await fetch('/api/crawl/resume', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ start_date: startDate, end_date: endDate })
+              body: JSON.stringify({ start_date: startDate, end_date: endDate, leagues: leagueInput.value })
             })
             if (resp.status === 409) {
               alert('爬取正在进行中')
@@ -1640,7 +1644,7 @@
 
         return {
           searchId, matches, total, loading, searched, progress, popupVisible, activeMatch,
-          iframeLoaded, logsEl, crawlStartDate, crawlEndDate, crawlDateMin, crawlDateMax,
+          iframeLoaded, logsEl, crawlStartDate, crawlEndDate, leagueInput, crawlDateMin, crawlDateMax,
           queryDate, dateMin, dateMax, crawl,
           searchById, loadByDate, onQueryDateChange,
           startCrawl, stopCrawl, resumeCrawl, closeCrawl, dismissCrawl,

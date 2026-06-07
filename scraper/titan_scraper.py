@@ -18,7 +18,7 @@ LIST_URL = "https://bf.titan007.com/football/Over_20260602.htm"
 DETAIL_URL = "https://zq.titan007.com/analysis/{match_id}cn.htm"
 ASIAN_ODDS_URL = "https://vip.titan007.com/AsianOdds_n.aspx?id={match_id}&l=0"
 OVER_UNDER_URL = "https://vip.titan007.com/OverDown_n.aspx?id={match_id}&l=0"
-ALLOWED_LEAGUES = {"英超", "意甲", "德甲", "西甲", "法甲"}
+DEFAULT_LEAGUES = {"英超", "意甲", "德甲", "西甲", "法甲"}
 DEFAULT_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/126.0.0.0 Safari/537.36"
@@ -115,8 +115,9 @@ class TitanScraper:
             )
         return rows
 
-    def filter_allowed_leagues(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [row for row in rows if (row.get("league_name") or "").strip() in ALLOWED_LEAGUES]
+    def filter_allowed_leagues(self, rows: list[dict[str, Any]], allowed_leagues: set[str] | None = None) -> list[dict[str, Any]]:
+        leagues = allowed_leagues or DEFAULT_LEAGUES
+        return [row for row in rows if (row.get("league_name") or "").strip() in leagues]
 
     async def fetch_detail_page(self, match_id: str) -> dict[str, Any]:
         page = await self._new_page()
